@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AboutController;
-use App\Http\Controllers\BlogSubcategoryController;
 use App\Http\Controllers\AdSlotController;
 use App\Http\Controllers\AdvantageController;
 use App\Http\Controllers\AnnouncementController;
@@ -11,9 +10,11 @@ use App\Http\Controllers\Auth\PasswordEmailController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\BenefitTopicController;
 use App\Http\Controllers\BlogCategoryController;
+use App\Http\Controllers\BlogSubcategoryController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\CouponController;
 use App\Http\Controllers\DepoimentController;
 use App\Http\Controllers\DirectionController;
 use App\Http\Controllers\DownloadFichaController;
@@ -476,8 +477,6 @@ Route::prefix('painel/')->group(function () {
         Route::post('galeria-de-imagens/delete', [GalleryImageController::class, 'destroySelected'])
         ->name('admin.dashboard.gallery.destroySelected');
 
-        
-
         //PARTNER
         Route::resource('parceiros', PartnerController::class)
         ->names('admin.dashboard.partner')
@@ -508,6 +507,20 @@ Route::prefix('painel/')->group(function () {
         Route::resource('theme-setting', TenantController::class)
         ->names('admin.dashboard.tenant')
         ->parameters(['theme-setting'=>'tenant']);
+
+
+        Route::prefix('coupons')->group(function () {
+
+            // Administração
+            Route::get('/', [CouponController::class, 'index']);
+            Route::post('/', [CouponController::class, 'store']);
+            Route::get('/{coupon}', [CouponController::class, 'show']);
+            Route::put('/{coupon}', [CouponController::class, 'update']);
+            Route::delete('/{coupon}', [CouponController::class, 'destroy']);
+
+            // Operação
+            Route::post('/validate', [CouponController::class, 'validateCode']);
+        });
     });
 
     // LANGUAGES
