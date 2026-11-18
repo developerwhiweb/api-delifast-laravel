@@ -926,6 +926,7 @@ class ClientApiTest extends TestCase
             'choices' => json_encode([
                 ['id' => 'size-300', 'name' => '300ml', 'price' => '10.00'],
                 ['id' => 'size-500', 'name' => '500ml', 'price' => '15.00'],
+                ['id' => 'size-700', 'name' => '700ml', 'price' => '20.00'],
             ]),
         ]);
         DB::table('coupons')->insert([
@@ -950,6 +951,21 @@ class ClientApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('valid', true)
             ->assertJsonPath('subtotal', 15);
+
+        $this->withToken($token)
+            ->postJson('/api/client/coupons/validate', [
+                'code' => 'SIZE15',
+                'items' => [[
+                    'product_id' => $productId,
+                    'quantity' => 1,
+                    'details' => [
+                        'options' => [(string) $optionId => 'size-700'],
+                    ],
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('valid', true)
+            ->assertJsonPath('subtotal', 20);
 
         $this->withToken($token)
             ->postJson('/api/client/coupons/validate', [

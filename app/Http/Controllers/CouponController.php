@@ -340,6 +340,7 @@ class CouponController extends Controller
             'items.*.selected_options.*' => ['nullable'],
             'items.*.selected_size_id' => ['nullable'],
             'items.*.selected_size_name' => ['nullable', 'string', 'max:100'],
+            'items.*.details' => ['nullable', 'array'],
         ]);
 
         $quote = $couponService->quote(

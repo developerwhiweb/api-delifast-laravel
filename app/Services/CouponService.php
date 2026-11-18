@@ -47,7 +47,10 @@ class CouponService
             $coupon->load('categories:id');
         }
 
-        $cartItems = array_values($items);
+        $cartItems = array_map(
+            fn (array $item) => $this->normalizeSelections($item),
+            array_values($items)
+        );
         $productIds = collect($cartItems)->pluck('product_id')->unique();
         $products = Product::with('options')
             ->whereIn('id', $productIds)
@@ -198,6 +201,24 @@ class CouponService
         }
 
         return max(0, $unitPriceCents);
+    }
+
+    private function normalizeSelections(array $cartItem): array
+    {
+        $details = is_array($cartItem['details'] ?? null)
+            ? $cartItem['details']
+            : [];
+
+        if (empty($cartItem['selected_options'])) {
+            $cartItem['selected_options'] = $details['selected_options']
+                ?? $details['options']
+                ?? [];
+        }
+
+        $cartItem['selected_size_id'] ??= $details['selected_size_id'] ?? null;
+        $cartItem['selected_size_name'] ??= $details['selected_size_name'] ?? null;
+
+        return $cartItem;
     }
 
     private function isProductEligible(Coupon $coupon, Product $product): bool
