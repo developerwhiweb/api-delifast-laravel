@@ -65,6 +65,24 @@ class OrderController extends Controller
                 'min:0',
             ],
 
+            'payment_method' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+
+            'coupon_code' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+
+            'coupon_discount' => [
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+
             'items' => [
                 'required',
                 'array',
@@ -162,10 +180,13 @@ class OrderController extends Controller
 
                 'status' => 'pending',
                 'payment_status' => 'pending',
+                'payment_method' => $validated['payment_method'] ?? null,
 
                 'subtotal' => $subtotal,
                 'delivery_fee' => $deliveryFee,
                 'discount' => $discount,
+                'coupon_code' => $validated['coupon_code'] ?? null,
+                'coupon_discount' => $validated['coupon_discount'] ?? 0,
 
                 'total' => $subtotal + $deliveryFee - $discount,
 

@@ -470,9 +470,12 @@ class ClientApiTest extends TestCase
             $table->json('delivery_address')->nullable();
             $table->string('status');
             $table->string('payment_status');
+            $table->string('payment_method', 50)->nullable();
             $table->decimal('subtotal', 10, 2);
             $table->decimal('delivery_fee', 10, 2);
             $table->decimal('discount', 10, 2);
+            $table->string('coupon_code', 50)->nullable();
+            $table->decimal('coupon_discount', 10, 2)->default(0);
             $table->decimal('total', 10, 2);
             $table->text('notes')->nullable();
             $table->timestamp('placed_at');
@@ -935,5 +938,102 @@ class ClientApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('items');
+    }
+
+    public function test_order_persists_payment_method_and_coupon_discount_details(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Delivery',
+            'slug' => 'delivery',
+            'domain' => 'localhost',
+            'active' => true,
+        ]);
+        $tenant->makeCurrent();
+
+        Schema::create('products', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->boolean('active')->default(true);
+            $table->string('title');
+            $table->string('slug')->nullable();
+            $table->string('path_image')->nullable();
+            $table->string('product_type')->nullable();
+            $table->decimal('price', 10, 2);
+            $table->timestamps();
+        });
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->string('number');
+            $table->unsignedBigInteger('client_id');
+            $table->string('customer_name');
+            $table->string('customer_phone');
+            $table->json('delivery_address')->nullable();
+            $table->string('status');
+            $table->string('payment_status');
+            $table->string('payment_method', 50)->nullable();
+            $table->decimal('subtotal', 10, 2)->default(0);
+            $table->decimal('delivery_fee', 10, 2)->default(0);
+            $table->decimal('discount', 10, 2)->default(0);
+            $table->string('coupon_code', 50)->nullable();
+            $table->decimal('coupon_discount', 10, 2)->default(0);
+            $table->decimal('total', 10, 2)->default(0);
+            $table->text('notes')->nullable();
+            $table->timestamp('placed_at');
+            $table->timestamps();
+        });
+        Schema::create('order_items', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('order_id');
+            $table->unsignedBigInteger('product_id')->nullable();
+            $table->string('product_title')->nullable();
+            $table->string('product_slug')->nullable();
+            $table->string('product_image')->nullable();
+            $table->string('product_type')->nullable();
+            $table->unsignedInteger('quantity');
+            $table->decimal('unit_price', 10, 2);
+            $table->decimal('total_price', 10, 2);
+            $table->json('details')->nullable();
+            $table->timestamps();
+        });
+
+        $client = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => 'ana@example.com',
+            'password' => Hash::make('not-used-by-delivery-api'),
+            'active' => true,
+        ]);
+        $productId = DB::table('products')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'active' => true,
+            'title' => 'Açaí no copo',
+            'price' => 15,
+        ]);
+
+        $this->withToken($client->createToken('delivery')->plainTextToken)
+            ->postJson('/api/client/orders', [
+                'payment_method' => 'pix',
+                'discount' => 5,
+                'coupon_code' => 'BEMVINDO',
+                'coupon_discount' => 5,
+                'items' => [[
+                    'product_id' => $productId,
+                    'quantity' => 1,
+                    'unit_price' => 15,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.payment_method', 'pix')
+            ->assertJsonPath('data.coupon_code', 'BEMVINDO')
+            ->assertJsonPath('data.coupon_discount', '5.00');
+
+        $this->assertDatabaseHas('orders', [
+            'payment_method' => 'pix',
+            'coupon_code' => 'BEMVINDO',
+            'coupon_discount' => 5,
+        ]);
     }
 }
