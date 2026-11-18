@@ -17,7 +17,7 @@ return new class extends Migration {
                 ->cascadeOnDelete();
 
             $table->foreignId('category_id')
-                ->constrained('categories')
+                ->constrained('product_categories')
                 ->cascadeOnDelete();
 
             $table->unique(['coupon_id', 'category_id']);

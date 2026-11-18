@@ -48,15 +48,19 @@ class Coupon extends Model
     {
         return $this->belongsToMany(
             Product::class,
-            'coupon_products'
+            'coupon_products',
+            'coupon_id',
+            'product_id'
         );
     }
 
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(
-            Category::class,
-            'coupon_categories'
+            ProductCategory::class,
+            'coupon_categories',
+            'coupon_id',
+            'category_id'
         );
     }
 

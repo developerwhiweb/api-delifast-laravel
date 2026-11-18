@@ -18,9 +18,15 @@ return new class extends Migration {
                 ->constrained('coupons')
                 ->restrictOnDelete();
 
-            // Ajuste conforme a estrutura do seu sistema.
-            $table->unsignedBigInteger('client_id')->nullable();
-            $table->unsignedBigInteger('order_id')->nullable();
+            $table->foreignId('client_id')
+                ->nullable()
+                ->constrained('clients')
+                ->nullOnDelete();
+
+            $table->foreignId('order_id')
+                ->nullable()
+                ->constrained('orders')
+                ->nullOnDelete();
 
             $table->decimal('discount_amount', 10, 2);
 

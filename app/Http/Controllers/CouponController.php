@@ -4,23 +4,35 @@ namespace App\Http\Controllers;
 
 use App\Models\Coupon;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Spatie\Multitenancy\Models\Tenant;
 
 class CouponController extends Controller
 {
     /**
      * Listar cupons.
      */
-    public function index()
+    public function index(Request $request)
     {
         $coupons = Coupon::with([
             'products:id,name',
-            'categories:id,name'
+            'categories:id,title'
         ])->latest()->paginate(20);
 
-        return response()->json($coupons);
+        if ($request->expectsJson()) {
+            return response()->json($coupons);
+        }
+
+        $products = Product::query()->orderBy('name')->get(['id', 'name', 'title']);
+        $categories = ProductCategory::sorting()->get(['id', 'title']);
+
+        return view(
+            'admin.blades.coupon.index',
+            compact('coupons', 'products', 'categories')
+        );
     }
 
     /**
@@ -41,10 +53,16 @@ class CouponController extends Controller
             return $coupon;
         });
 
-        return response()->json([
-            'message' => 'Cupom criado com sucesso.',
-            'coupon' => $coupon->load(['products', 'categories'])
-        ], 201);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Cupom criado com sucesso.',
+                'coupon' => $coupon->load(['products', 'categories'])
+            ], 201);
+        }
+
+        return redirect()
+            ->route('admin.dashboard.coupon.index')
+            ->with('success', 'Cupom criado com sucesso.');
     }
 
     /**
@@ -73,25 +91,37 @@ class CouponController extends Controller
             $this->syncTargets($coupon, $data);
         });
 
-        return response()->json([
-            'message' => 'Cupom atualizado com sucesso.',
-            'coupon' => $coupon->fresh()->load([
-                'products',
-                'categories'
-            ])
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Cupom atualizado com sucesso.',
+                'coupon' => $coupon->fresh()->load([
+                    'products',
+                    'categories'
+                ])
+            ]);
+        }
+
+        return redirect()
+            ->route('admin.dashboard.coupon.index')
+            ->with('success', 'Cupom atualizado com sucesso.');
     }
 
     /**
      * Excluir cupom.
      */
-    public function destroy(Coupon $coupon)
+    public function destroy(Request $request, Coupon $coupon)
     {
         $coupon->delete();
 
-        return response()->json([
-            'message' => 'Cupom excluído com sucesso.'
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Cupom excluído com sucesso.'
+            ]);
+        }
+
+        return redirect()
+            ->route('admin.dashboard.coupon.index')
+            ->with('success', 'Cupom excluído com sucesso.');
     }
 
     /**
@@ -101,6 +131,15 @@ class CouponController extends Controller
         Request $request,
         ?Coupon $coupon = null
     ): array {
+        $request->merge([
+            'code' => strtoupper(trim((string) $request->input('code'))),
+        ]);
+        $tenantId = Tenant::current()?->id;
+
+        $discountValueRules = ['required', 'numeric', 'gt:0'];
+        if ($request->input('discount_type') === 'PERCENTAGE') {
+            $discountValueRules[] = 'max:100';
+        }
 
         return $request->validate([
             'code' => [
@@ -109,6 +148,7 @@ class CouponController extends Controller
                 'max:50',
                 Rule::unique('coupons', 'code')
                     ->ignore($coupon?->id)
+                    ->where(fn ($query) => $query->where('tenant_id', $tenantId))
             ],
 
             'description' => ['nullable', 'string'],
@@ -118,11 +158,7 @@ class CouponController extends Controller
                 Rule::in(['PERCENTAGE', 'FIXED'])
             ],
 
-            'discount_value' => [
-                'required',
-                'numeric',
-                'gt:0'
-            ],
+            'discount_value' => $discountValueRules,
 
             'applies_to' => [
                 'required',
@@ -134,7 +170,8 @@ class CouponController extends Controller
             ],
 
             'fixed_scope' => [
-                'required',
+                'required_if:discount_type,FIXED',
+                'nullable',
                 Rule::in(['ORDER', 'UNIT'])
             ],
 
@@ -179,7 +216,8 @@ class CouponController extends Controller
             'product_ids.*' => [
                 'integer',
                 'distinct',
-                'exists:products,id'
+                Rule::exists('products', 'id')
+                    ->where('tenant_id', $tenantId)
             ],
 
             'category_ids' => [
@@ -190,7 +228,8 @@ class CouponController extends Controller
             'category_ids.*' => [
                 'integer',
                 'distinct',
-                'exists:categories,id'
+                Rule::exists('product_categories', 'id')
+                    ->where('tenant_id', $tenantId)
             ],
         ]);
     }
@@ -224,17 +263,27 @@ class CouponController extends Controller
         Coupon $coupon,
         array $data
     ): void {
+        $productIds = $data['applies_to'] === 'SPECIFIC_PRODUCTS'
+            ? $data['product_ids'] ?? []
+            : [];
+        $categoryIds = $data['applies_to'] === 'SPECIFIC_CATEGORIES'
+            ? $data['category_ids'] ?? []
+            : [];
 
         $coupon->products()->sync(
-            $data['applies_to'] === 'SPECIFIC_PRODUCTS'
-                ? ($data['product_ids'] ?? [])
-                : []
+            collect($productIds)
+                ->mapWithKeys(fn ($id) => [
+                    $id => ['tenant_id' => $coupon->tenant_id],
+                ])
+                ->all()
         );
 
         $coupon->categories()->sync(
-            $data['applies_to'] === 'SPECIFIC_CATEGORIES'
-                ? ($data['category_ids'] ?? [])
-                : []
+            collect($categoryIds)
+                ->mapWithKeys(fn ($id) => [
+                    $id => ['tenant_id' => $coupon->tenant_id],
+                ])
+                ->all()
         );
     }
 
@@ -253,14 +302,26 @@ class CouponController extends Controller
                 'required',
                 'integer',
                 'distinct',
-                'exists:products,id'
+                Rule::exists('products', 'id')
+                    ->where('tenant_id', Tenant::current()?->id)
             ],
             'items.*.quantity' => [
                 'required',
                 'integer',
                 'min:1'
             ],
-            'customer_id' => ['nullable', 'integer'],
+            'client_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('clients', 'id')
+                    ->where('tenant_id', Tenant::current()?->id)
+            ],
+            'customer_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('clients', 'id')
+                    ->where('tenant_id', Tenant::current()?->id)
+            ],
         ]);
 
         $coupon = Coupon::with([
@@ -280,12 +341,10 @@ class CouponController extends Controller
         }
 
         // Limite de utilização por cliente.
-        if (
-            isset($data['customer_id']) &&
-            $coupon->usage_per_customer !== null
-        ) {
+        $clientId = $data['client_id'] ?? $data['customer_id'] ?? null;
+        if ($clientId !== null && $coupon->usage_per_customer !== null) {
             $customerUsages = $coupon->usages()
-                ->where('customer_id', $data['customer_id'])
+                ->where('client_id', $clientId)
                 ->count();
 
             if ($customerUsages >= $coupon->usage_per_customer) {
@@ -317,9 +376,7 @@ class CouponController extends Controller
             $quantity = (int) $cartItem['quantity'];
 
             // Considera o preço unitário cadastrado no banco.
-            $unitPriceCents = (int) round(
-                (float) $product->price * 100
-            );
+            $unitPriceCents = (int) round((float) $product->price * 100);
 
             $itemSubtotalCents = $unitPriceCents * $quantity;
 
@@ -405,7 +462,7 @@ class CouponController extends Controller
         if ($coupon->applies_to === 'SPECIFIC_CATEGORIES') {
             return $coupon->categories->contains(
                 'id',
-                $product->category_id
+                $product->product_category_id
             );
         }
 

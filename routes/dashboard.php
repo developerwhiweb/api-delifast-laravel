@@ -509,18 +509,13 @@ Route::prefix('painel/')->group(function () {
         ->parameters(['theme-setting'=>'tenant']);
 
 
-        Route::prefix('coupons')->group(function () {
-
-            // Administração
-            Route::get('/', [CouponController::class, 'index']);
-            Route::post('/', [CouponController::class, 'store']);
-            Route::get('/{coupon}', [CouponController::class, 'show']);
-            Route::put('/{coupon}', [CouponController::class, 'update']);
-            Route::delete('/{coupon}', [CouponController::class, 'destroy']);
-
-            // Operação
-            Route::post('/validate', [CouponController::class, 'validateCode']);
-        });
+        Route::resource('coupons', CouponController::class)
+            ->except(['create', 'edit'])
+            ->names('admin.dashboard.coupon');
+        Route::post(
+            'coupons/validate',
+            [CouponController::class, 'validateCode']
+        )->name('admin.dashboard.coupon.validate');
     });
 
     // LANGUAGES

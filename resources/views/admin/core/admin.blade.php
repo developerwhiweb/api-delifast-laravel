@@ -1368,5 +1368,6 @@
                 data_sidenav_size: "{{ isset($settingTheme)?$settingTheme->data_sidenav_size: 'condensed' }}"
             };
         </script>
+        @yield('scripts')
     </body>
 </html>

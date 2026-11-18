@@ -14,7 +14,7 @@ return new class extends Migration {
                 ->constrained()
                 ->cascadeOnDelete();
                 
-            $table->string('code', 50)->unique();
+            $table->string('code', 50);
             $table->string('description')->nullable();
 
             // PERCENTAGE ou FIXED
@@ -43,6 +43,8 @@ return new class extends Migration {
 
             $table->timestamps();
             $table->softDeletes();
+
+            $table->unique(['tenant_id', 'code']);
         });
     }
 
