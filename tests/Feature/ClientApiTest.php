@@ -799,4 +799,141 @@ class ClientApiTest extends TestCase
             'active' => true,
         ]);
     }
+
+    public function test_coupon_minimum_uses_selected_option_price_and_accepts_duplicate_product_lines(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Delivery',
+            'slug' => 'delivery',
+            'domain' => 'localhost',
+            'active' => true,
+        ]);
+        $tenant->makeCurrent();
+
+        Schema::create('products', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('product_category_id')->nullable();
+            $table->string('name');
+            $table->decimal('price', 10, 2);
+            $table->json('sizes')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('options', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('product_id');
+            $table->string('title');
+            $table->json('choices');
+            $table->timestamps();
+        });
+        Schema::create('coupons', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->string('code');
+            $table->string('discount_type');
+            $table->decimal('discount_value', 10, 2);
+            $table->string('applies_to');
+            $table->string('fixed_scope')->default('ORDER');
+            $table->decimal('min_order_value', 10, 2)->default(0);
+            $table->decimal('max_discount', 10, 2)->nullable();
+            $table->unsignedInteger('usage_limit')->nullable();
+            $table->unsignedInteger('usage_per_customer')->nullable();
+            $table->unsignedInteger('usage_count')->default(0);
+            $table->dateTime('starts_at')->nullable();
+            $table->dateTime('expires_at')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+        Schema::create('product_categories', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+        });
+        Schema::create('coupon_products', function (Blueprint $table) {
+            $table->unsignedBigInteger('coupon_id');
+            $table->unsignedBigInteger('product_id');
+        });
+        Schema::create('coupon_categories', function (Blueprint $table) {
+            $table->unsignedBigInteger('coupon_id');
+            $table->unsignedBigInteger('category_id');
+        });
+
+        $client = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => 'ana@example.com',
+            'password' => Hash::make('not-used-by-delivery-api'),
+            'active' => true,
+        ]);
+        $token = $client->createToken('delivery')->plainTextToken;
+        $productId = DB::table('products')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'name' => 'Açaí no copo',
+            'price' => 10,
+        ]);
+        $optionId = DB::table('options')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'product_id' => $productId,
+            'title' => 'Tamanhos',
+            'choices' => json_encode([
+                ['id' => 'size-300', 'name' => '300ml', 'price' => '10.00'],
+                ['id' => 'size-500', 'name' => '500ml', 'price' => '15.00'],
+            ]),
+        ]);
+        DB::table('coupons')->insert([
+            'tenant_id' => $tenant->id,
+            'code' => 'SIZE15',
+            'discount_type' => 'PERCENTAGE',
+            'discount_value' => 10,
+            'applies_to' => 'ALL',
+            'min_order_value' => 15,
+            'is_active' => true,
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/client/coupons/validate', [
+                'code' => 'SIZE15',
+                'items' => [[
+                    'product_id' => $productId,
+                    'quantity' => 1,
+                    'selected_options' => [(string) $optionId => 'size-500'],
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('valid', true)
+            ->assertJsonPath('subtotal', 15);
+
+        $this->withToken($token)
+            ->postJson('/api/client/coupons/validate', [
+                'code' => 'SIZE15',
+                'items' => [
+                    [
+                        'product_id' => $productId,
+                        'quantity' => 1,
+                        'selected_options' => [(string) $optionId => 'size-300'],
+                    ],
+                    [
+                        'product_id' => $productId,
+                        'quantity' => 1,
+                        'selected_options' => [(string) $optionId => 'size-500'],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('subtotal', 25);
+
+        $this->withToken($token)
+            ->postJson('/api/client/coupons/validate', [
+                'code' => 'SIZE15',
+                'items' => [[
+                    'product_id' => $productId,
+                    'quantity' => 1,
+                    'selected_options' => [(string) $optionId => 'forged-choice'],
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items');
+    }
 }

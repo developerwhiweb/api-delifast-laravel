@@ -9,6 +9,7 @@ use App\Repositories\SettingThemeRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Spatie\Multitenancy\Models\Tenant;
 
 class CouponController extends Controller
@@ -327,7 +328,6 @@ class CouponController extends Controller
             'items.*.product_id' => [
                 'required',
                 'integer',
-                'distinct',
                 Rule::exists('products', 'id')
                     ->where('tenant_id', Tenant::current()?->id)
             ],
@@ -336,6 +336,10 @@ class CouponController extends Controller
                 'integer',
                 'min:1'
             ],
+            'items.*.selected_options' => ['sometimes', 'array'],
+            'items.*.selected_options.*' => ['nullable'],
+            'items.*.selected_size_id' => ['nullable'],
+            'items.*.selected_size_name' => ['nullable', 'string', 'max:100'],
         ]);
 
         $coupon = Coupon::with([
@@ -374,7 +378,8 @@ class CouponController extends Controller
             ->pluck('product_id')
             ->unique();
 
-        $products = Product::whereIn('id', $productIds)
+        $products = Product::with('options')
+            ->whereIn('id', $productIds)
             ->get()
             ->keyBy('id');
 
@@ -389,8 +394,10 @@ class CouponController extends Controller
             $product = $products->get($cartItem['product_id']);
             $quantity = (int) $cartItem['quantity'];
 
-            // Considera o preço unitário cadastrado no banco.
-            $unitPriceCents = (int) round((float) $product->price * 100);
+            $unitPriceCents = $this->resolveCouponItemUnitPriceCents(
+                $product,
+                $cartItem
+            );
 
             $itemSubtotalCents = $unitPriceCents * $quantity;
 
@@ -455,6 +462,85 @@ class CouponController extends Controller
             'discount' => $discountCents / 100,
             'total' => ($subtotalCents - $discountCents) / 100,
         ]);
+    }
+
+    private function resolveCouponItemUnitPriceCents(
+        Product $product,
+        array $cartItem
+    ): int {
+        $unitPriceCents = (int) round((float) $product->price * 100);
+        $selectedSizeId = $cartItem['selected_size_id'] ?? null;
+        $selectedSizeName = $cartItem['selected_size_name'] ?? null;
+
+        if ($selectedSizeId !== null || $selectedSizeName !== null) {
+            $selectedSize = collect($product->sizes ?? [])->first(
+                fn ($size) => is_array($size)
+                    && (
+                        ($selectedSizeId !== null
+                            && isset($size['id'])
+                            && (string) $size['id'] === (string) $selectedSizeId)
+                        || ($selectedSizeName !== null
+                            && (string) ($size['name'] ?? '') === $selectedSizeName)
+                    )
+            );
+
+            if ($selectedSize === null || !isset($selectedSize['price'])) {
+                throw ValidationException::withMessages([
+                    'items' => 'O tamanho selecionado não está disponível para este produto.',
+                ]);
+            }
+
+            $unitPriceCents = (int) round((float) $selectedSize['price'] * 100);
+        }
+
+        $optionsById = $product->options->keyBy(
+            fn ($option) => (string) $option->id
+        );
+
+        foreach (($cartItem['selected_options'] ?? []) as $optionId => $selectedChoices) {
+            $option = $optionsById->get((string) $optionId);
+            if ($option === null) {
+                throw ValidationException::withMessages([
+                    'items' => 'Uma das opções selecionadas não pertence a este produto.',
+                ]);
+            }
+
+            if ($selectedChoices === null || $selectedChoices === '') {
+                continue;
+            }
+
+            $selectedChoices = is_array($selectedChoices)
+                ? $selectedChoices
+                : [$selectedChoices];
+            $replacesBasePrice = preg_match('/tamanho|size/i', (string) $option->title) === 1;
+
+            if ($replacesBasePrice && count($selectedChoices) > 1) {
+                throw ValidationException::withMessages([
+                    'items' => 'Selecione apenas um tamanho para cada produto.',
+                ]);
+            }
+
+            foreach ($selectedChoices as $choiceId) {
+                $choice = collect($option->choices ?? [])->first(
+                    fn ($choice) => is_array($choice)
+                        && isset($choice['id'])
+                        && (string) $choice['id'] === (string) $choiceId
+                );
+
+                if ($choice === null) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Uma das opções selecionadas não está disponível.',
+                    ]);
+                }
+
+                $choicePriceCents = (int) round((float) ($choice['price'] ?? 0) * 100);
+                $unitPriceCents = $replacesBasePrice
+                    ? $choicePriceCents
+                    : $unitPriceCents + $choicePriceCents;
+            }
+        }
+
+        return max(0, $unitPriceCents);
     }
 
     private function checkCouponPermission(string $action)
