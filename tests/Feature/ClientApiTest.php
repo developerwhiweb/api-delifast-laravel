@@ -961,6 +961,14 @@ class ClientApiTest extends TestCase
             $table->decimal('price', 10, 2);
             $table->timestamps();
         });
+        Schema::create('options', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('product_id');
+            $table->string('title');
+            $table->json('choices');
+            $table->timestamps();
+        });
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('tenant_id');
@@ -980,6 +988,34 @@ class ClientApiTest extends TestCase
             $table->decimal('total', 10, 2)->default(0);
             $table->text('notes')->nullable();
             $table->timestamp('placed_at');
+            $table->timestamps();
+        });
+        Schema::create('coupons', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->string('code', 50);
+            $table->string('discount_type');
+            $table->decimal('discount_value', 10, 2);
+            $table->string('applies_to');
+            $table->string('fixed_scope')->default('ORDER');
+            $table->decimal('min_order_value', 10, 2)->default(0);
+            $table->decimal('max_discount', 10, 2)->nullable();
+            $table->unsignedInteger('usage_limit')->nullable();
+            $table->unsignedInteger('usage_per_customer')->nullable();
+            $table->unsignedInteger('usage_count')->default(0);
+            $table->dateTime('starts_at')->nullable();
+            $table->dateTime('expires_at')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+            $table->softDeletes();
+        });
+        Schema::create('coupon_usages', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('coupon_id');
+            $table->unsignedBigInteger('client_id')->nullable();
+            $table->unsignedBigInteger('order_id')->nullable()->unique();
+            $table->decimal('discount_amount', 10, 2);
             $table->timestamps();
         });
         Schema::create('order_items', function (Blueprint $table) {
@@ -1012,28 +1048,66 @@ class ClientApiTest extends TestCase
             'title' => 'Açaí no copo',
             'price' => 15,
         ]);
+        DB::table('coupons')->insert([
+            'tenant_id' => $tenant->id,
+            'code' => 'BEMVINDO',
+            'discount_type' => 'FIXED',
+            'discount_value' => 5,
+            'applies_to' => 'ALL',
+            'fixed_scope' => 'ORDER',
+            'min_order_value' => 0,
+            'usage_limit' => 1,
+            'usage_per_customer' => 1,
+            'usage_count' => 0,
+            'is_active' => true,
+        ]);
+        $orderData = [
+            'payment_method' => 'pix',
+            'discount' => 99,
+            'coupon_code' => 'BEMVINDO',
+            'coupon_discount' => 99,
+            'items' => [[
+                'product_id' => $productId,
+                'quantity' => 1,
+                'unit_price' => 15,
+            ]],
+        ];
 
         $this->withToken($client->createToken('delivery')->plainTextToken)
-            ->postJson('/api/client/orders', [
-                'payment_method' => 'pix',
-                'discount' => 5,
-                'coupon_code' => 'BEMVINDO',
-                'coupon_discount' => 5,
-                'items' => [[
-                    'product_id' => $productId,
-                    'quantity' => 1,
-                    'unit_price' => 15,
-                ]],
-            ])
+            ->postJson('/api/client/orders', $orderData)
             ->assertCreated()
             ->assertJsonPath('data.payment_method', 'pix')
             ->assertJsonPath('data.coupon_code', 'BEMVINDO')
-            ->assertJsonPath('data.coupon_discount', '5.00');
+            ->assertJsonPath('data.coupon_discount', '5.00')
+            ->assertJsonPath('data.discount', '5.00')
+            ->assertJsonPath('data.total', '10.00');
 
         $this->assertDatabaseHas('orders', [
             'payment_method' => 'pix',
             'coupon_code' => 'BEMVINDO',
             'coupon_discount' => 5,
+            'discount' => 5,
         ]);
+        $this->assertDatabaseHas('coupons', [
+            'code' => 'BEMVINDO',
+            'usage_count' => 1,
+        ]);
+        $this->assertDatabaseCount('coupon_usages', 1);
+
+        $this->withToken($client->createToken('delivery')->plainTextToken)
+            ->postJson('/api/client/orders', $orderData)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('coupon_code');
+
+        $this->withToken($client->createToken('delivery')->plainTextToken)
+            ->postJson('/api/client/coupons/validate', [
+                'code' => 'BEMVINDO',
+                'items' => [[
+                    'product_id' => $productId,
+                    'quantity' => 1,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('valid', false);
     }
 }

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tenant;
+use App\Services\CouponService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +40,7 @@ class OrderController extends Controller
     /**
      * Registrar um novo pedido.
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CouponService $couponService): JsonResponse
     {
         $client = $request->user();
 
@@ -116,17 +118,39 @@ class OrderController extends Controller
                 'nullable',
                 'array',
             ],
+
+            'items.*.selected_options' => ['sometimes', 'array'],
+            'items.*.selected_options.*' => ['nullable'],
+            'items.*.selected_size_id' => ['nullable'],
+            'items.*.selected_size_name' => ['nullable', 'string', 'max:100'],
         ]);
 
         $tenant = Tenant::current();
 
-        $order = DB::transaction(function () use ($validated, $tenant, $client) {
+        $order = DB::transaction(function () use ($validated, $tenant, $client, $couponService) {
+            $cartItems = array_values($validated['items']);
+            $couponCode = trim((string) ($validated['coupon_code'] ?? ''));
+            $couponQuote = null;
+
+            if ($couponCode !== '') {
+                $couponQuote = $couponService->quote(
+                    $couponCode,
+                    $cartItems,
+                    $client->id,
+                    true
+                );
+
+                if (!$couponQuote['valid']) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => $couponQuote['message'],
+                    ]);
+                }
+            }
 
             $subtotal = 0;
-
             $items = [];
 
-            foreach ($validated['items'] as $item) {
+            foreach ($cartItems as $index => $item) {
 
                 $product = Product::query()
                     ->where('tenant_id', $tenant->id)
@@ -135,7 +159,9 @@ class OrderController extends Controller
 
                 $quantity = $item['quantity'];
 
-                $unitPrice = $this->resolveUnitPrice($product, $item);
+                $unitPrice = $couponQuote
+                    ? (float) $couponQuote['items'][$index]['unit_price']
+                    : $this->resolveUnitPrice($product, $item);
 
                 $totalPrice = round($unitPrice * $quantity, 2);
 
@@ -159,13 +185,22 @@ class OrderController extends Controller
             }
 
             $deliveryFee = $validated['delivery_fee'] ?? 0;
-            $discount = $validated['discount'] ?? 0;
+            $couponDiscount = $couponQuote
+                ? $couponQuote['discountCents'] / 100
+                : 0;
+            $discount = $couponQuote
+                ? $couponDiscount
+                : ($validated['discount'] ?? 0);
 
             if ($discount > ($subtotal + $deliveryFee)) {
                 throw ValidationException::withMessages([
                     'discount' => 'O desconto não pode ser maior que o valor do pedido.',
                 ]);
             }
+
+            $couponCodeToSave = $couponQuote
+                ? $couponQuote['coupon']->code
+                : null;
 
             $order = Order::create([
                 'tenant_id' => $tenant->id,
@@ -185,8 +220,8 @@ class OrderController extends Controller
                 'subtotal' => $subtotal,
                 'delivery_fee' => $deliveryFee,
                 'discount' => $discount,
-                'coupon_code' => $validated['coupon_code'] ?? null,
-                'coupon_discount' => $validated['coupon_discount'] ?? 0,
+                'coupon_code' => $couponCodeToSave,
+                'coupon_discount' => $couponDiscount,
 
                 'total' => $subtotal + $deliveryFee - $discount,
 
@@ -196,6 +231,17 @@ class OrderController extends Controller
             ]);
 
             $order->items()->createMany($items);
+
+            if ($couponQuote) {
+                CouponUsage::create([
+                    'coupon_id' => $couponQuote['coupon']->id,
+                    'client_id' => $client->id,
+                    'order_id' => $order->id,
+                    'discount_amount' => $couponDiscount,
+                ]);
+
+                $couponQuote['coupon']->increment('usage_count');
+            }
 
             return $order;
         });

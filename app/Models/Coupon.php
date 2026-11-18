@@ -42,6 +42,7 @@ class Coupon extends Model
         'starts_at' => 'datetime',
         'expires_at' => 'datetime',
         'is_active' => 'boolean',
+        'usage_count' => 'integer',
     ];
 
     public function products(): BelongsToMany
@@ -69,6 +70,32 @@ class Coupon extends Model
         return $this->hasMany(CouponUsage::class);
     }
 
+    public function totalUsageCount(): int
+    {
+        $orderCount = Order::query()
+            ->whereRaw('UPPER(coupon_code) = ?', [strtoupper($this->code)])
+            ->count();
+
+        return max(
+            (int) $this->usage_count,
+            $this->usages()->count(),
+            $orderCount
+        );
+    }
+
+    public function usageCountForClient(int|string $clientId): int
+    {
+        $orderCount = Order::query()
+            ->whereRaw('UPPER(coupon_code) = ?', [strtoupper($this->code)])
+            ->where('client_id', $clientId)
+            ->count();
+
+        return max(
+            $this->usages()->where('client_id', $clientId)->count(),
+            $orderCount
+        );
+    }
+
     public function isValid(): bool
     {
         $now = now();
@@ -87,7 +114,7 @@ class Coupon extends Model
 
         if (
             $this->usage_limit !== null &&
-            $this->usage_count >= $this->usage_limit
+            $this->totalUsageCount() >= $this->usage_limit
         ) {
             return false;
         }

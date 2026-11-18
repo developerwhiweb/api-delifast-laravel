@@ -6,10 +6,10 @@ use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Repositories\SettingThemeRepository;
+use App\Services\CouponService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Spatie\Multitenancy\Models\Tenant;
 
 class CouponController extends Controller
@@ -320,7 +320,7 @@ class CouponController extends Controller
      * Recebe os produtos do carrinho.
      * Os preços são consultados diretamente no banco.
      */
-    public function validateCode(Request $request)
+    public function validateCode(Request $request, CouponService $couponService)
     {
         $data = $request->validate([
             'code' => ['required', 'string'],
@@ -342,110 +342,21 @@ class CouponController extends Controller
             'items.*.selected_size_name' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $coupon = Coupon::with([
-            'products:id',
-            'categories:id'
-        ])
-            ->whereRaw('UPPER(code) = ?', [
-                strtoupper(trim($data['code']))
-            ])
-            ->first();
-
-        if (!$coupon || !$coupon->isValid()) {
-            return response()->json([
-                'valid' => false,
-                'message' => 'Cupom inválido ou expirado.'
-            ], 422);
-        }
-
-        // Limite de utilização por cliente.
-        $clientId = $request->user()?->getAuthIdentifier();
-        if ($clientId !== null && $coupon->usage_per_customer !== null) {
-            $customerUsages = $coupon->usages()
-                ->where('client_id', $clientId)
-                ->count();
-
-            if ($customerUsages >= $coupon->usage_per_customer) {
-                return response()->json([
-                    'valid' => false,
-                    'message' => 'Você já atingiu o limite de uso deste cupom.'
-                ], 422);
-            }
-        }
-
-        // Buscar produtos reais no banco.
-        $productIds = collect($data['items'])
-            ->pluck('product_id')
-            ->unique();
-
-        $products = Product::with('options')
-            ->whereIn('id', $productIds)
-            ->get()
-            ->keyBy('id');
-
-        $subtotalCents = 0;
-        $eligibleSubtotalCents = 0;
-        $eligibleQuantity = 0;
-
-        $items = [];
-
-        foreach ($data['items'] as $cartItem) {
-
-            $product = $products->get($cartItem['product_id']);
-            $quantity = (int) $cartItem['quantity'];
-
-            $unitPriceCents = $this->resolveCouponItemUnitPriceCents(
-                $product,
-                $cartItem
-            );
-
-            $itemSubtotalCents = $unitPriceCents * $quantity;
-
-            $subtotalCents += $itemSubtotalCents;
-
-            $isEligible = $this->isProductEligible(
-                $coupon,
-                $product
-            );
-
-            if ($isEligible) {
-                $eligibleSubtotalCents += $itemSubtotalCents;
-                $eligibleQuantity += $quantity;
-            }
-
-            $items[] = [
-                'product_id' => $product->id,
-                'name' => $product->name,
-                'quantity' => $quantity,
-                'unit_price' => $unitPriceCents / 100,
-                'subtotal' => $itemSubtotalCents / 100,
-                'eligible' => $isEligible,
-            ];
-        }
-
-        // Valor mínimo considera o subtotal total do pedido.
-        if (
-            $subtotalCents <
-            (int) round((float) $coupon->min_order_value * 100)
-        ) {
-            return response()->json([
-                'valid' => false,
-                'message' => 'O pedido não atingiu o valor mínimo para este cupom.'
-            ], 422);
-        }
-
-        if ($eligibleSubtotalCents <= 0) {
-            return response()->json([
-                'valid' => false,
-                'message' => 'Este cupom não se aplica aos produtos do carrinho.'
-            ], 422);
-        }
-
-        $discountCents = $this->calculateDiscount(
-            $coupon,
-            $eligibleSubtotalCents,
-            $eligibleQuantity
+        $quote = $couponService->quote(
+            $data['code'],
+            $data['items'],
+            $request->user()?->getAuthIdentifier()
         );
+
+        if (!$quote['valid']) {
+            return response()->json([
+                'valid' => false,
+                'message' => $quote['message'],
+            ], 422);
+        }
+
+        $coupon = $quote['coupon'];
+        $discountCents = $quote['discountCents'];
 
         return response()->json([
             'valid' => true,
@@ -456,91 +367,12 @@ class CouponController extends Controller
                 'discount_value' => $coupon->discount_value,
                 'applies_to' => $coupon->applies_to,
             ],
-            'items' => $items,
-            'subtotal' => $subtotalCents / 100,
-            'eligible_subtotal' => $eligibleSubtotalCents / 100,
+            'items' => $quote['items'],
+            'subtotal' => $quote['subtotalCents'] / 100,
+            'eligible_subtotal' => $quote['eligibleSubtotalCents'] / 100,
             'discount' => $discountCents / 100,
-            'total' => ($subtotalCents - $discountCents) / 100,
+            'total' => ($quote['subtotalCents'] - $discountCents) / 100,
         ]);
-    }
-
-    private function resolveCouponItemUnitPriceCents(
-        Product $product,
-        array $cartItem
-    ): int {
-        $unitPriceCents = (int) round((float) $product->price * 100);
-        $selectedSizeId = $cartItem['selected_size_id'] ?? null;
-        $selectedSizeName = $cartItem['selected_size_name'] ?? null;
-
-        if ($selectedSizeId !== null || $selectedSizeName !== null) {
-            $selectedSize = collect($product->sizes ?? [])->first(
-                fn ($size) => is_array($size)
-                    && (
-                        ($selectedSizeId !== null
-                            && isset($size['id'])
-                            && (string) $size['id'] === (string) $selectedSizeId)
-                        || ($selectedSizeName !== null
-                            && (string) ($size['name'] ?? '') === $selectedSizeName)
-                    )
-            );
-
-            if ($selectedSize === null || !isset($selectedSize['price'])) {
-                throw ValidationException::withMessages([
-                    'items' => 'O tamanho selecionado não está disponível para este produto.',
-                ]);
-            }
-
-            $unitPriceCents = (int) round((float) $selectedSize['price'] * 100);
-        }
-
-        $optionsById = $product->options->keyBy(
-            fn ($option) => (string) $option->id
-        );
-
-        foreach (($cartItem['selected_options'] ?? []) as $optionId => $selectedChoices) {
-            $option = $optionsById->get((string) $optionId);
-            if ($option === null) {
-                throw ValidationException::withMessages([
-                    'items' => 'Uma das opções selecionadas não pertence a este produto.',
-                ]);
-            }
-
-            if ($selectedChoices === null || $selectedChoices === '') {
-                continue;
-            }
-
-            $selectedChoices = is_array($selectedChoices)
-                ? $selectedChoices
-                : [$selectedChoices];
-            $replacesBasePrice = preg_match('/tamanho|size/i', (string) $option->title) === 1;
-
-            if ($replacesBasePrice && count($selectedChoices) > 1) {
-                throw ValidationException::withMessages([
-                    'items' => 'Selecione apenas um tamanho para cada produto.',
-                ]);
-            }
-
-            foreach ($selectedChoices as $choiceId) {
-                $choice = collect($option->choices ?? [])->first(
-                    fn ($choice) => is_array($choice)
-                        && isset($choice['id'])
-                        && (string) $choice['id'] === (string) $choiceId
-                );
-
-                if ($choice === null) {
-                    throw ValidationException::withMessages([
-                        'items' => 'Uma das opções selecionadas não está disponível.',
-                    ]);
-                }
-
-                $choicePriceCents = (int) round((float) ($choice['price'] ?? 0) * 100);
-                $unitPriceCents = $replacesBasePrice
-                    ? $choicePriceCents
-                    : $unitPriceCents + $choicePriceCents;
-            }
-        }
-
-        return max(0, $unitPriceCents);
     }
 
     private function checkCouponPermission(string $action)
@@ -554,79 +386,4 @@ class CouponController extends Controller
         );
     }
 
-    /**
-     * Verificar se o produto pode receber desconto.
-     */
-    private function isProductEligible(
-        Coupon $coupon,
-        Product $product
-    ): bool {
-
-        if ($coupon->applies_to === 'ALL') {
-            return true;
-        }
-
-        if ($coupon->applies_to === 'SPECIFIC_PRODUCTS') {
-            return $coupon->products->contains('id', $product->id);
-        }
-
-        if ($coupon->applies_to === 'SPECIFIC_CATEGORIES') {
-            return $coupon->categories->contains(
-                'id',
-                $product->product_category_id
-            );
-        }
-
-        return false;
-    }
-
-    /**
-     * Calcular desconto em centavos.
-     */
-    private function calculateDiscount(
-        Coupon $coupon,
-        int $eligibleSubtotalCents,
-        int $eligibleQuantity
-    ): int {
-
-        if ($coupon->discount_type === 'PERCENTAGE') {
-
-            // Ex.: 10,50% = 1050 pontos-base.
-            $percentageBasisPoints = (int) round(
-                (float) $coupon->discount_value * 100
-            );
-
-            $discountCents = (int) round(
-                $eligibleSubtotalCents *
-                $percentageBasisPoints / 10000
-            );
-
-        } else {
-
-            $fixedDiscountCents = (int) round(
-                (float) $coupon->discount_value * 100
-            );
-
-            if ($coupon->fixed_scope === 'UNIT') {
-                $discountCents = $fixedDiscountCents * $eligibleQuantity;
-            } else {
-                $discountCents = $fixedDiscountCents;
-            }
-        }
-
-        // Aplicar desconto máximo.
-        if ($coupon->max_discount !== null) {
-            $maxDiscountCents = (int) round(
-                (float) $coupon->max_discount * 100
-            );
-
-            $discountCents = min(
-                $discountCents,
-                $maxDiscountCents
-            );
-        }
-
-        // Nunca permitir desconto maior que o valor elegível.
-        return min($discountCents, $eligibleSubtotalCents);
-    }
 }
