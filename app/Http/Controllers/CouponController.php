@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Repositories\SettingThemeRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,11 @@ class CouponController extends Controller
      */
     public function index(Request $request)
     {
+        $permission = $this->checkCouponPermission('visualizar');
+        if ($permission !== true) {
+            return $permission;
+        }
+
         $coupons = Coupon::with([
             'products:id,name',
             'categories:id,title'
@@ -40,6 +46,11 @@ class CouponController extends Controller
      */
     public function store(Request $request)
     {
+        $permission = $this->checkCouponPermission('criar');
+        if ($permission !== true) {
+            return $permission;
+        }
+
         $data = $this->validateCouponData($request);
 
         $coupon = DB::transaction(function () use ($data) {
@@ -70,6 +81,11 @@ class CouponController extends Controller
      */
     public function show(Coupon $coupon)
     {
+        $permission = $this->checkCouponPermission('visualizar');
+        if ($permission !== true) {
+            return $permission;
+        }
+
         return response()->json(
             $coupon->load(['products', 'categories'])
         );
@@ -80,6 +96,11 @@ class CouponController extends Controller
      */
     public function update(Request $request, Coupon $coupon)
     {
+        $permission = $this->checkCouponPermission('editar');
+        if ($permission !== true) {
+            return $permission;
+        }
+
         $data = $this->validateCouponData($request, $coupon);
 
         DB::transaction(function () use ($coupon, $data) {
@@ -111,6 +132,11 @@ class CouponController extends Controller
      */
     public function destroy(Request $request, Coupon $coupon)
     {
+        $permission = $this->checkCouponPermission('remover');
+        if ($permission !== true) {
+            return $permission;
+        }
+
         $coupon->delete();
 
         if ($request->expectsJson()) {
@@ -310,18 +336,6 @@ class CouponController extends Controller
                 'integer',
                 'min:1'
             ],
-            'client_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('clients', 'id')
-                    ->where('tenant_id', Tenant::current()?->id)
-            ],
-            'customer_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('clients', 'id')
-                    ->where('tenant_id', Tenant::current()?->id)
-            ],
         ]);
 
         $coupon = Coupon::with([
@@ -341,7 +355,7 @@ class CouponController extends Controller
         }
 
         // Limite de utilização por cliente.
-        $clientId = $data['client_id'] ?? $data['customer_id'] ?? null;
+        $clientId = $request->user()?->getAuthIdentifier();
         if ($clientId !== null && $coupon->usage_per_customer !== null) {
             $customerUsages = $coupon->usages()
                 ->where('client_id', $clientId)
@@ -441,6 +455,17 @@ class CouponController extends Controller
             'discount' => $discountCents / 100,
             'total' => ($subtotalCents - $discountCents) / 100,
         ]);
+    }
+
+    private function checkCouponPermission(string $action)
+    {
+        $settingTheme = (new SettingThemeRepository())->settingTheme();
+
+        return checkPermission(
+            'coupons',
+            "cupons.{$action}",
+            $settingTheme
+        );
     }
 
     /**

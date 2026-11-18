@@ -38,10 +38,12 @@
                         <div class="card">
                             <div class="card-body">
                                 <div class="d-flex justify-content-end mb-3">
-                                    <button type="button" class="btn btn-primary text-black waves-effect waves-light"
-                                        data-bs-toggle="modal" data-bs-target="#coupon-create">
-                                        <i class="mdi mdi-plus-circle me-1"></i> Novo cupom
-                                    </button>
+                                    @if (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('cupons.criar'))
+                                        <button type="button" class="btn btn-primary text-black waves-effect waves-light"
+                                            data-bs-toggle="modal" data-bs-target="#coupon-create">
+                                            <i class="mdi mdi-plus-circle me-1"></i> Novo cupom
+                                        </button>
+                                    @endif
                                 </div>
 
                                 <div class="table-responsive">
@@ -97,22 +99,26 @@
                                                         @endif
                                                     </td>
                                                     <td class="d-flex gap-1">
-                                                        <button type="button" class="btn btn-primary text-black"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#coupon-edit-{{ $coupon->id }}"
-                                                            aria-label="Editar {{ $coupon->code }}">
-                                                            <span class="mdi mdi-pencil"></span>
-                                                        </button>
-                                                        <form action="{{ route('admin.dashboard.coupon.destroy', $coupon) }}"
-                                                            method="POST">
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button type="button"
-                                                                class="btn btn-danger btSubmitDeleteItem"
-                                                                aria-label="Excluir {{ $coupon->code }}">
-                                                                <i class="fa fa-times"></i>
+                                                        @if (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('cupons.editar'))
+                                                            <button type="button" class="btn btn-primary text-black"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#coupon-edit-{{ $coupon->id }}"
+                                                                aria-label="Editar {{ $coupon->code }}">
+                                                                <span class="mdi mdi-pencil"></span>
                                                             </button>
-                                                        </form>
+                                                        @endif
+                                                        @if (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('cupons.remover'))
+                                                            <form action="{{ route('admin.dashboard.coupon.destroy', $coupon) }}"
+                                                                method="POST">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="button"
+                                                                    class="btn btn-danger btSubmitDeleteItem"
+                                                                    aria-label="Excluir {{ $coupon->code }}">
+                                                                    <i class="fa fa-times"></i>
+                                                                </button>
+                                                            </form>
+                                                        @endif
                                                     </td>
                                                 </tr>
 
@@ -127,7 +133,8 @@
                                     </table>
                                 </div>
 
-                                @foreach ($coupons as $coupon)
+                                @if (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('cupons.editar'))
+                                    @foreach ($coupons as $coupon)
                                     <div class="modal fade" id="coupon-edit-{{ $coupon->id }}" tabindex="-1"
                                         aria-hidden="true">
                                         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -158,7 +165,8 @@
                                             </div>
                                         </div>
                                     </div>
-                                @endforeach
+                                    @endforeach
+                                @endif
 
                                 <div class="mt-3 float-end">
                                     {{ $coupons->links() }}
@@ -171,30 +179,32 @@
         </div>
     </div>
 
-    <div class="modal fade" id="coupon-create" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-light">
-                    <h4 class="modal-title">Cadastrar cupom</h4>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <form id="coupon-create-form" class="coupon-form"
-                        action="{{ route('admin.dashboard.coupon.store') }}" method="POST">
-                        @csrf
-                        @include('admin.blades.coupon.form', [
-                            'coupon' => null,
-                            'formId' => 'coupon-create-form',
-                        ])
-                        <div class="d-flex justify-content-end gap-2">
-                            <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="submit" class="btn btn-primary text-black">Cadastrar</button>
-                        </div>
-                    </form>
+    @if (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('cupons.criar'))
+        <div class="modal fade" id="coupon-create" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-light">
+                        <h4 class="modal-title">Cadastrar cupom</h4>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <form id="coupon-create-form" class="coupon-form"
+                            action="{{ route('admin.dashboard.coupon.store') }}" method="POST">
+                            @csrf
+                            @include('admin.blades.coupon.form', [
+                                'coupon' => null,
+                                'formId' => 'coupon-create-form',
+                            ])
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary text-black">Cadastrar</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    @endif
 @endsection
 
 @section('scripts')

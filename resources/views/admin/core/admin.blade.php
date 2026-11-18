@@ -232,12 +232,12 @@
                             {{-- ============================================================
                             PRODUTOS
                             ============================================================ --}}
-                            @if ($theme->hasAnyModule(['brands','product_categories','products']))
+                            @if ($theme->hasAnyModule(['brands','product_categories','products','coupons']))
                                 <li class="menu-item">
                                     <a href="#menuDashboardsP" data-bs-toggle="collapse" class="menu-link">
                                         <span class="menu-icon"><i class="mdi mdi-toolbox"></i></span>
                                         <span class="menu-text">Produtos</span>
-                                        <span class="badge btn-green-whi rounded-pill ms-auto text-dark">{{ collect(['brands','product_categories','products'])->filter(fn ($module) => $theme->hasModule($module))->count() }}</span>
+                                        <span class="badge btn-green-whi rounded-pill ms-auto text-dark">{{ collect(['brands','product_categories','products','coupons'])->filter(fn ($module) => $theme->hasModule($module))->count() }}</span>
                                     </a>
                                     <div class="collapse" id="menuDashboardsP">
                                         <ul class="sub-menu">
@@ -249,6 +249,9 @@
                                             @endif
                                             @if ($theme->hasModule('products') && (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('produtos.visualizar')))
                                                 <li class="menu-item"><a href="{{ route('admin.dashboard.product.index') }}" class="menu-link"><span class="menu-text">Produtos</span></a></li>
+                                            @endif
+                                            @if ($theme->hasModule('coupons') && (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('cupons.visualizar')))
+                                                <li class="menu-item"><a href="{{ route('admin.dashboard.coupon.index') }}" class="menu-link"><span class="menu-text">Cupons</span></a></li>
                                             @endif
                                         </ul>
                                     </div>

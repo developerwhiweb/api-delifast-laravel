@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ServiceLocationController;
 use App\Http\Controllers\Api\SlideController;
 use App\Http\Controllers\Api\TenantController;
+use App\Http\Controllers\CouponController;
 use App\Http\Middleware\EnsureApiJson;
 use App\Http\Middleware\EnsureApiTenant;
 use App\Http\Middleware\EnsureClientApiAuthenticated;
@@ -61,6 +62,9 @@ Route::middleware([EnsureApiJson::class, EnsureApiTenant::class])
 
         Route::delete('/addresses/{address}', [CustomerAddress::class, 'destroy'])
             ->name('api.client.addresses.destroy');
+
+        Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
+            ->name('api.client.coupons.validate');
 
         // Pedidos
         Route::prefix('orders')

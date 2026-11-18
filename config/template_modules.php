@@ -37,6 +37,7 @@ return [
                     'brands',
                     'product_categories',
                     'products',
+                    'coupons',
                     'videos',
                     'videos',
                     'advantage',
@@ -77,6 +78,7 @@ return [
                     'brands',
                     'product_categories',
                     'products',
+                    'coupons',
                 ],
 
                 'templates' => [

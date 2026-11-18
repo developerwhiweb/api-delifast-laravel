@@ -270,6 +270,16 @@ return [
         ],
     ],
 
+    'coupons' => [
+        'permission' => 'cupons',
+        'actions' => [
+            'criar',
+            'editar',
+            'visualizar',
+            'remover',
+        ],
+    ],
+
     'partner' => [
         'permission' => 'parceiro',
         'actions' => [

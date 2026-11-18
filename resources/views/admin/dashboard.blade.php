@@ -696,6 +696,14 @@
                     ])
                 @endif
 
+                @if ($hasModule('coupons') && ($isSuper || $user->can('cupons.visualizar') || $user->can('usuario.tornar usuario master')))
+                    @include('admin.components.dashboard-card', [
+                        'route' => route('admin.dashboard.coupon.index'),
+                        'icon' => 'mdi-tag-multiple',
+                        'title' => 'Cupons de desconto'
+                    ])
+                @endif
+
                 @if (in_array('product_categories', $homeModules, true) && ($isSuper || $user->can('categorias de produtos.visualizar') || $user->can('usuario.tornar usuario master')))
                     @include('admin.components.dashboard-card', [
                         'route' => route('admin.dashboard.productCategory.index'),

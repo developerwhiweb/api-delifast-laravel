@@ -512,10 +512,6 @@ Route::prefix('painel/')->group(function () {
         Route::resource('coupons', CouponController::class)
             ->except(['create', 'edit'])
             ->names('admin.dashboard.coupon');
-        Route::post(
-            'coupons/validate',
-            [CouponController::class, 'validateCode']
-        )->name('admin.dashboard.coupon.validate');
     });
 
     // LANGUAGES
