@@ -457,6 +457,7 @@ class ClientApiTest extends TestCase
             $table->string('path_image')->nullable();
             $table->string('product_type')->nullable();
             $table->decimal('price', 10, 2);
+            $table->json('stock')->nullable();
             $table->timestamps();
         });
 
@@ -520,11 +521,14 @@ class ClientApiTest extends TestCase
             'active' => true,
             'title' => 'Produto',
             'price' => 12.50,
+            'stock' => json_encode(['control' => 1, 'quantity' => 3]),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        $this->withToken($client->createToken('delivery')->plainTextToken)
+        $token = $client->createToken('delivery')->plainTextToken;
+
+        $this->withToken($token)
             ->postJson('/api/client/orders', [
                 'items' => [
                     [
@@ -565,6 +569,45 @@ class ClientApiTest extends TestCase
             'unit_price' => 12.5,
             'total_price' => 12.5,
         ]);
+
+        $this->assertSame(
+            ['control' => 1, 'quantity' => 0],
+            json_decode(DB::table('products')->where('id', $productId)->value('stock'), true)
+        );
+
+        $this->withToken($token)
+            ->postJson('/api/client/orders', [
+                'items' => [
+                    ['product_id' => $productId, 'quantity' => 1],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('items.0.quantity');
+
+        $this->assertDatabaseCount('orders', 1);
+
+        $unlimitedProductId = DB::table('products')->insertGetId([
+            'tenant_id' => $tenant->id,
+            'active' => true,
+            'title' => 'Produto sem controle de estoque',
+            'price' => 5.00,
+            'stock' => json_encode(['control' => 0, 'quantity' => 1]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/client/orders', [
+                'items' => [
+                    ['product_id' => $unlimitedProductId, 'quantity' => 5],
+                ],
+            ])
+            ->assertCreated();
+
+        $this->assertSame(
+            ['control' => 0, 'quantity' => 1],
+            json_decode(DB::table('products')->where('id', $unlimitedProductId)->value('stock'), true)
+        );
     }
 
     public function test_tenant_api_returns_public_branding_and_theme_configuration(): void

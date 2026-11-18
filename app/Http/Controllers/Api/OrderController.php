@@ -155,9 +155,11 @@ class OrderController extends Controller
                 $product = Product::query()
                     ->where('tenant_id', $tenant->id)
                     ->where('active', true)
+                    ->lockForUpdate()
                     ->findOrFail($item['product_id']);
 
                 $quantity = $item['quantity'];
+                $this->consumeStock($product, $quantity, $index);
 
                 $unitPrice = $couponQuote
                     ? (float) $couponQuote['items'][$index]['unit_price']
@@ -250,6 +252,32 @@ class OrderController extends Controller
             'message' => 'Pedido realizado com sucesso!',
             'data' => $order->load('items'),
         ], 201);
+    }
+
+    private function consumeStock(Product $product, int $quantity, int $itemIndex): void
+    {
+        $stock = $product->stock ?? [];
+
+        if (!filter_var($stock['control'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        $available = max(0, (int) ($stock['quantity'] ?? 0));
+
+        if ($quantity > $available) {
+            throw ValidationException::withMessages([
+                "items.{$itemIndex}.quantity" => sprintf(
+                    'Estoque insuficiente para %s. Disponível: %d.',
+                    $product->title,
+                    $available
+                ),
+            ]);
+        }
+
+        $stock['control'] = 1;
+        $stock['quantity'] = $available - $quantity;
+        $product->stock = $stock;
+        $product->save();
     }
 
     /**

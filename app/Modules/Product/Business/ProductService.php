@@ -140,6 +140,16 @@ class ProductService
             $data['old_price'] = $this->normalizePrice($data['old_price']);
         }
 
+        if (isset($data['stock']) && is_array($data['stock'])) {
+            $data['stock'] = [
+                'control' => (int) filter_var(
+                    $data['stock']['control'] ?? false,
+                    FILTER_VALIDATE_BOOLEAN
+                ),
+                'quantity' => (int) ($data['stock']['quantity'] ?? 0),
+            ];
+        }
+
         // Mantém compatibilidade com o campo antigo sizes.
         // Quando a estrutura nova estiver totalmente implantada,
         // esse tratamento poderá ser removido.
