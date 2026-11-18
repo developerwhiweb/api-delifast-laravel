@@ -959,7 +959,25 @@ class ClientApiTest extends TestCase
                     'product_id' => $productId,
                     'quantity' => 1,
                     'details' => [
-                        'options' => [(string) $optionId => 'size-700'],
+                        'options' => [[
+                            'optionName' => 'Tamanhos',
+                            'choiceName' => '700ml',
+                        ]],
+                    ],
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('valid', true)
+            ->assertJsonPath('subtotal', 20);
+
+        $this->withToken($token)
+            ->postJson('/api/client/coupons/validate', [
+                'code' => 'SIZE15',
+                'items' => [[
+                    'product_id' => $productId,
+                    'quantity' => 1,
+                    'details' => [
+                        'options' => ['Tamanhos' => '700ml'],
                     ],
                 ]],
             ])

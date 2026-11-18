@@ -158,7 +158,14 @@ class CouponService
         );
 
         foreach (($cartItem['selected_options'] ?? []) as $optionId => $selectedChoices) {
-            $option = $optionsById->get((string) $optionId);
+            $option = $optionsById->get((string) $optionId)
+                ?? $product->options->first(
+                    fn ($candidate) => strcasecmp(
+                        trim((string) $candidate->title),
+                        trim((string) $optionId)
+                    ) === 0
+                );
+
             if ($option === null) {
                 throw ValidationException::withMessages([
                     'items' => 'Uma das opções selecionadas não pertence a este produto.',
@@ -172,6 +179,22 @@ class CouponService
             $selectedChoices = is_array($selectedChoices)
                 ? $selectedChoices
                 : [$selectedChoices];
+            if (
+                !array_is_list($selectedChoices)
+                && (
+                    isset($selectedChoices['id'])
+                    || isset($selectedChoices['choice_id'])
+                    || isset($selectedChoices['name'])
+                    || isset($selectedChoices['value'])
+                )
+            ) {
+                $selectedChoices = [
+                    $selectedChoices['id']
+                        ?? $selectedChoices['choice_id']
+                        ?? $selectedChoices['name']
+                        ?? $selectedChoices['value'],
+                ];
+            }
             $replacesBasePrice = preg_match('/tamanho|size/i', (string) $option->title) === 1;
 
             if ($replacesBasePrice && count($selectedChoices) > 1) {
@@ -183,8 +206,15 @@ class CouponService
             foreach ($selectedChoices as $choiceId) {
                 $choice = collect($option->choices ?? [])->first(
                     fn ($choice) => is_array($choice)
-                        && isset($choice['id'])
-                        && (string) $choice['id'] === (string) $choiceId
+                        && (
+                            (isset($choice['id'])
+                                && (string) $choice['id'] === (string) $choiceId)
+                            || (isset($choice['name'])
+                                && strcasecmp(
+                                    trim((string) $choice['name']),
+                                    trim((string) $choiceId)
+                                ) === 0)
+                        )
                 );
 
                 if ($choice === null) {
@@ -213,6 +243,51 @@ class CouponService
             $cartItem['selected_options'] = $details['selected_options']
                 ?? $details['options']
                 ?? [];
+        }
+
+        if (is_array($cartItem['selected_options']) && array_is_list($cartItem['selected_options'])) {
+            $selections = [];
+
+            foreach ($cartItem['selected_options'] as $selection) {
+                if (!is_array($selection)) {
+                    throw ValidationException::withMessages([
+                        'items' => 'O formato de uma opção selecionada é inválido.',
+                    ]);
+                }
+
+                $option = $selection['option_id']
+                    ?? $selection['optionId']
+                    ?? $selection['option_name']
+                    ?? $selection['optionName']
+                    ?? $selection['option']
+                    ?? $selection['title']
+                    ?? $selection['name']
+                    ?? null;
+                $choice = $selection['choice_id']
+                    ?? $selection['choiceId']
+                    ?? $selection['choice_name']
+                    ?? $selection['choiceName']
+                    ?? $selection['choice']
+                    ?? $selection['value']
+                    ?? $selection['selected']
+                    ?? null;
+
+                if (is_array($option)) {
+                    $option = $option['id'] ?? $option['title'] ?? $option['name'] ?? null;
+                }
+                if (is_array($choice)) {
+                    $choice = $choice['id'] ?? $choice['name'] ?? $choice['value'] ?? null;
+                }
+                if ($option === null || $choice === null) {
+                    throw ValidationException::withMessages([
+                        'items' => 'O formato de uma opção selecionada é inválido.',
+                    ]);
+                }
+
+                $selections[(string) $option] = $choice;
+            }
+
+            $cartItem['selected_options'] = $selections;
         }
 
         $cartItem['selected_size_id'] ??= $details['selected_size_id'] ?? null;
