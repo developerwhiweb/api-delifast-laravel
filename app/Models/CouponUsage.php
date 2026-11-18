@@ -2,11 +2,20 @@
 
 namespace App\Models;
 
+use App\Models\Coupon;
+use App\Services\ActivityLogService;
+use App\Traits\BelongsToTenant;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class CouponUsage extends Model
 {
+    use Notifiable, HasFactory, LogsActivity, BelongsToTenant;
+    
     protected $fillable = [
         'coupon_id',
         'customer_id',
@@ -21,5 +30,13 @@ class CouponUsage extends Model
     public function coupon(): BelongsTo
     {
         return $this->belongsTo(Coupon::class);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        $activityLogService = new ActivityLogService($this);
+        
+        return LogOptions::defaults()
+            ->logOnly($activityLogService->getLoggableAttributes());
     }
 }

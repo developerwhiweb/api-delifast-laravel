@@ -2,14 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\CouponUsage;
+use App\Models\Product;
+use App\Services\ActivityLogService;
+use App\Traits\BelongsToTenant;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Coupon extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, Notifiable, HasFactory, LogsActivity, BelongsToTenant;
 
     protected $fillable = [
         'code',
@@ -81,5 +89,13 @@ class Coupon extends Model
         }
 
         return true;
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        $activityLogService = new ActivityLogService($this);
+        
+        return LogOptions::defaults()
+            ->logOnly($activityLogService->getLoggableAttributes());
     }
 }
