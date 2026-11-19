@@ -49,7 +49,7 @@ class ClientSecurityService
             $targetEmail = $client->email;
         } else {
             if ($client->orders()->exists() || $client->addresses()->exists()) {
-                abort(403, 'É necessária uma verificação de identidade adicional para cadastrar um e-mail nesta conta.');
+                abort(403, 'Para proteger sua conta, não foi possível cadastrar seu e-mail automaticamente. Se você é o titular desta conta, entre em contato com nosso estabelecimento para realizar a verificação de identidade e liberar o cadastro do seu e-mail.');
             }
 
             if (! $email) {
