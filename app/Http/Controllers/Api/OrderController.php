@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contact;
 use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Services\CouponService;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -128,6 +130,8 @@ class OrderController extends Controller
         $tenant = Tenant::current();
 
         $order = DB::transaction(function () use ($validated, $tenant, $client, $couponService) {
+            $this->assertStoreIsOpen($tenant);
+
             $cartItems = array_values($validated['items']);
             $couponCode = trim((string) ($validated['coupon_code'] ?? ''));
             $couponQuote = null;
@@ -200,6 +204,8 @@ class OrderController extends Controller
                 ]);
             }
 
+            $this->assertStoreIsOpen($tenant);
+
             $couponCodeToSave = $couponQuote
                 ? $couponQuote['coupon']->code
                 : null;
@@ -252,6 +258,130 @@ class OrderController extends Controller
             'message' => 'Pedido realizado com sucesso!',
             'data' => $order->load('items'),
         ], 201);
+    }
+
+    private function assertStoreIsOpen(Tenant $tenant): void
+    {
+        $contact = Contact::query()
+            ->where('tenant_id', $tenant->id)
+            ->lockForUpdate()
+            ->first(['opening_hours']);
+
+        $isOpen = $this->storeIsOpenAt($contact?->opening_hours, now());
+
+        if ($isOpen === false) {
+            throw ValidationException::withMessages([
+                'store_hours' => 'O estabelecimento está fechado no momento. Não é possível finalizar o pedido.',
+            ]);
+        }
+
+        if ($isOpen !== true) {
+            throw ValidationException::withMessages([
+                'store_hours' => 'Não foi possível verificar o horário de funcionamento do estabelecimento.',
+            ]);
+        }
+    }
+
+    private function storeIsOpenAt(?array $openingHours, CarbonInterface $date): ?bool
+    {
+        if (!is_array($openingHours) || count($openingHours) !== 7) {
+            return null;
+        }
+
+        $scheduleByDay = [];
+
+        foreach ($openingHours as $schedule) {
+            if (
+                !is_array($schedule)
+                || !array_key_exists('day_of_week', $schedule)
+                || !array_key_exists('is_closed', $schedule)
+            ) {
+                return null;
+            }
+
+            $dayOfWeek = filter_var($schedule['day_of_week'] ?? null, FILTER_VALIDATE_INT);
+            $isClosed = filter_var(
+                $schedule['is_closed'] ?? null,
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            );
+
+            if (
+                $dayOfWeek === false
+                || $dayOfWeek < 1
+                || $dayOfWeek > 7
+                || array_key_exists($dayOfWeek, $scheduleByDay)
+                || $isClosed === null
+            ) {
+                return null;
+            }
+
+            $openMinutes = $this->timeToMinutes($schedule['open_time'] ?? null);
+            $closeMinutes = $this->timeToMinutes($schedule['close_time'] ?? null);
+
+            if (!$isClosed && ($openMinutes === null || $closeMinutes === null)) {
+                return null;
+            }
+
+            $scheduleByDay[$dayOfWeek] = [
+                'is_closed' => $isClosed,
+                'open_minutes' => $openMinutes,
+                'close_minutes' => $closeMinutes,
+            ];
+        }
+
+        if (count($scheduleByDay) !== 7) {
+            return null;
+        }
+
+        $dayOfWeek = (int) $date->format('N');
+        $previousDay = $dayOfWeek === 1 ? 7 : $dayOfWeek - 1;
+        $currentMinutes = ((int) $date->format('G')) * 60 + (int) $date->format('i');
+
+        return $this->isOpenDuringSchedule(
+            $scheduleByDay[$dayOfWeek],
+            $currentMinutes
+        ) || $this->isOpenDuringSchedule(
+            $scheduleByDay[$previousDay],
+            $currentMinutes,
+            true
+        );
+    }
+
+    private function isOpenDuringSchedule(
+        array $schedule,
+        int $currentMinutes,
+        bool $isPreviousDay = false
+    ): bool {
+        if ($schedule['is_closed']) {
+            return false;
+        }
+
+        $openMinutes = $schedule['open_minutes'];
+        $closeMinutes = $schedule['close_minutes'];
+
+        if ($openMinutes < $closeMinutes) {
+            return !$isPreviousDay
+                && $currentMinutes >= $openMinutes
+                && $currentMinutes < $closeMinutes;
+        }
+
+        if ($openMinutes > $closeMinutes) {
+            return $isPreviousDay
+                ? $currentMinutes < $closeMinutes
+                : $currentMinutes >= $openMinutes;
+        }
+
+        return false;
+    }
+
+    private function timeToMinutes(mixed $time): ?int
+    {
+        if (!is_string($time) || !preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time, $matches)) {
+            return null;
+        }
+
+        return ((int) $matches[1]) * 60 + (int) $matches[2];
     }
 
     private function consumeStock(Product $product, int $quantity, int $itemIndex): void

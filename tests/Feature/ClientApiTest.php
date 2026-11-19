@@ -47,6 +47,13 @@ class ClientApiTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('contacts', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->json('opening_hours')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('template_themes', function (Blueprint $table) {
             $table->id();
             $table->string('slug');
@@ -506,6 +513,7 @@ class ClientApiTest extends TestCase
             'active' => true,
         ]);
         $tenant->makeCurrent();
+        $this->createOpenContactHours($tenant->id);
 
         $client = Client::create([
             'tenant_id' => $tenant->id,
@@ -604,6 +612,28 @@ class ClientApiTest extends TestCase
             ])
             ->assertCreated();
 
+        $this->assertSame(
+            ['control' => 0, 'quantity' => 1],
+            json_decode(DB::table('products')->where('id', $unlimitedProductId)->value('stock'), true)
+        );
+
+        DB::table('contacts')
+            ->where('tenant_id', $tenant->id)
+            ->update([
+                'opening_hours' => json_encode($this->openingHoursThatHaveClosed()),
+                'updated_at' => now(),
+            ]);
+
+        $this->withToken($token)
+            ->postJson('/api/client/orders', [
+                'items' => [
+                    ['product_id' => $unlimitedProductId, 'quantity' => 1],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('store_hours');
+
+        $this->assertDatabaseCount('orders', 2);
         $this->assertSame(
             ['control' => 0, 'quantity' => 1],
             json_decode(DB::table('products')->where('id', $unlimitedProductId)->value('stock'), true)
@@ -1026,6 +1056,7 @@ class ClientApiTest extends TestCase
             'active' => true,
         ]);
         $tenant->makeCurrent();
+        $this->createOpenContactHours($tenant->id);
 
         Schema::create('products', function (Blueprint $table) {
             $table->id();
@@ -1186,5 +1217,39 @@ class ClientApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonPath('valid', false);
+    }
+
+    private function createOpenContactHours(int $tenantId): void
+    {
+        $currentTime = now();
+        $openTime = $currentTime->copy()->subHour()->format('H:i');
+        $closeTime = $currentTime->copy()->addHour()->format('H:i');
+        $openingHours = array_map(fn (int $dayOfWeek) => [
+            'day_of_week' => $dayOfWeek,
+            'open_time' => $openTime,
+            'close_time' => $closeTime,
+            'is_closed' => false,
+        ], range(1, 7));
+
+        DB::table('contacts')->insert([
+            'tenant_id' => $tenantId,
+            'opening_hours' => json_encode($openingHours),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function openingHoursThatHaveClosed(): array
+    {
+        $currentTime = now();
+        $openTime = $currentTime->copy()->subHours(2)->format('H:i');
+        $closeTime = $currentTime->copy()->subHour()->format('H:i');
+
+        return array_map(fn (int $dayOfWeek) => [
+            'day_of_week' => $dayOfWeek,
+            'open_time' => $openTime,
+            'close_time' => $closeTime,
+            'is_closed' => false,
+        ], range(1, 7));
     }
 }
