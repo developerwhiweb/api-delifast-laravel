@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AnnoumcementsController;
 use App\Http\Controllers\Api\AppearanceController;
 use App\Http\Controllers\Api\AuthClientController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientSecurityController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\CustomerAddress;
 use App\Http\Controllers\Api\OrderController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\CouponController;
 use App\Http\Middleware\EnsureApiJson;
 use App\Http\Middleware\EnsureApiTenant;
 use App\Http\Middleware\EnsureClientApiAuthenticated;
+use App\Http\Middleware\EnsureClientSensitiveAccess;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', function () {
@@ -23,68 +25,88 @@ Route::get('/ping', function () {
 });
 
 Route::middleware([EnsureApiJson::class, EnsureApiTenant::class])
-->prefix('client')
-->group(function () {
+    ->prefix('client')
+    ->group(function () {
 
-    Route::post('/login', [AuthClientController::class, 'login'])
-        ->name('api.client.login');
+        Route::post('/login', [AuthClientController::class, 'login'])
+            ->middleware('throttle:10,1')
+            ->name('api.client.login');
 
-    Route::middleware(EnsureClientApiAuthenticated::class)->group(function () {
+        Route::middleware(EnsureClientApiAuthenticated::class)->group(function () {
 
-        Route::get('/me', [ClientController::class, 'show'])
-            ->name('api.client.show');
+            Route::post('/logout', [AuthClientController::class, 'logout'])
+                ->name('api.client.logout');
 
-        Route::put('/me', [ClientController::class, 'update'])
-            ->name('api.client.update');
+            Route::post('/email-verification/request', [ClientSecurityController::class, 'requestEmailVerification'])
+                ->middleware('throttle:5,1')
+                ->name('api.client.email-verification.request');
 
-        Route::patch('/me', [ClientController::class, 'update']);
+            Route::post('/email-verification/confirm', [ClientSecurityController::class, 'confirmEmailVerification'])
+                ->middleware('throttle:10,1')
+                ->name('api.client.email-verification.confirm');
 
-        Route::delete('/me', [ClientController::class, 'destroy'])
-            ->name('api.client.destroy');
+            Route::post('/sensitive-access/request', [ClientSecurityController::class, 'requestSensitiveAccessCode'])
+                ->middleware('throttle:5,1')
+                ->name('api.client.sensitive-access.request');
 
-        Route::post('/logout', [AuthClientController::class, 'logout'])
-            ->name('api.client.logout');
+            Route::post('/sensitive-access/confirm', [ClientSecurityController::class, 'confirmSensitiveAccessCode'])
+                ->middleware('throttle:10,1')
+                ->name('api.client.sensitive-access.confirm');
 
-        // Endereços
-        Route::get('/addresses', [CustomerAddress::class, 'index'])
-            ->name('api.client.addresses.index');
+            Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
+                ->name('api.client.coupons.validate');
 
-        Route::post('/addresses', [CustomerAddress::class, 'store'])
-            ->name('api.client.addresses.store');
+            Route::post('/orders', [OrderController::class, 'store'])
+                ->name('api.client.orders.store');
 
-        Route::get('/addresses/{address}', [CustomerAddress::class, 'show'])
-            ->name('api.client.addresses.show');
+            Route::put('/address-storage', [ClientController::class, 'updateAddressStorage'])
+                ->name('api.client.address-storage.update');
 
-        Route::put('/addresses/{address}', [CustomerAddress::class, 'update'])
-            ->name('api.client.addresses.update');
+            Route::middleware(EnsureClientSensitiveAccess::class)->group(function () {
+                Route::get('/me', [ClientController::class, 'show'])
+                    ->name('api.client.show');
 
-        Route::patch('/addresses/{address}', [CustomerAddress::class, 'update']);
+                Route::put('/me', [ClientController::class, 'update'])
+                    ->name('api.client.update');
 
-        Route::delete('/addresses/{address}', [CustomerAddress::class, 'destroy'])
-            ->name('api.client.addresses.destroy');
+                Route::patch('/me', [ClientController::class, 'update']);
 
-        Route::post('/coupons/validate', [CouponController::class, 'validateCode'])
-            ->name('api.client.coupons.validate');
+                Route::delete('/me', [ClientController::class, 'destroy'])
+                    ->name('api.client.destroy');
 
-        // Pedidos
-        Route::prefix('orders')
-        ->name('api.client.orders.')
-        ->controller(OrderController::class)
-        ->group(function () {
+                Route::get('/addresses', [CustomerAddress::class, 'index'])
+                    ->name('api.client.addresses.index');
 
-            Route::get('/', 'index')
-                ->name('index');
+                Route::post('/addresses', [CustomerAddress::class, 'store'])
+                    ->name('api.client.addresses.store');
 
-            Route::post('/', 'store')
-                ->name('store');
+                Route::get('/addresses/{address}', [CustomerAddress::class, 'show'])
+                    ->name('api.client.addresses.show');
 
-            Route::get('/{id}', 'show')
-                ->name('show');
+                Route::put('/addresses/{address}', [CustomerAddress::class, 'update'])
+                    ->name('api.client.addresses.update');
+
+                Route::patch('/addresses/{address}', [CustomerAddress::class, 'update']);
+
+                Route::delete('/addresses/{address}', [CustomerAddress::class, 'destroy'])
+                    ->name('api.client.addresses.destroy');
+
+                Route::prefix('orders')
+                    ->name('api.client.orders.')
+                    ->controller(OrderController::class)
+                    ->group(function () {
+
+                        Route::get('/', 'index')
+                            ->name('index');
+
+                        Route::get('/{id}', 'show')
+                            ->name('show');
+
+                    });
+            });
 
         });
-
     });
-});
 
 Route::middleware([EnsureApiJson::class, EnsureApiTenant::class])
     ->get('/tenant', [TenantController::class, 'show'])

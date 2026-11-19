@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\CustomerAddress as CustomerAddressModel;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -28,6 +28,11 @@ class CustomerAddress extends Controller
     public function store(Request $request): JsonResponse
     {
         $client = $this->client($request);
+        abort_unless(
+            $client->email && $client->email_verified_at,
+            403,
+            'Confirme um e-mail para salvar endereços na conta.'
+        );
         $data = $this->validatedAddress($request);
 
         return DB::transaction(function () use ($client, $data) {
@@ -46,6 +51,8 @@ class CustomerAddress extends Controller
             }
 
             $address = $client->addresses()->create($data);
+            $client->address_storage_enabled = true;
+            $client->save();
 
             return response()->json([
                 'message' => 'Endereço cadastrado com sucesso.',

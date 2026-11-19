@@ -2,21 +2,23 @@
 
 namespace Tests\Feature;
 
-use App\Models\Client;
+use App\Mail\ClientVerificationCodeMail;
 use App\Models\AdSlot;
 use App\Models\Announcement;
 use App\Models\AuditActivity;
-use App\Models\CustomerAddress;
+use App\Models\Client;
 use App\Models\Slide;
-use App\Models\Tenant;
 use App\Models\TemplateTheme;
+use App\Models\Tenant;
 use App\Repositories\AuditCountRepository;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ClientApiTest extends TestCase
@@ -156,6 +158,11 @@ class ClientApiTest extends TestCase
         $migration = require database_path('migrations/2026_11_12_114000_allow_delivery_client_self_registration.php');
         $migration->up();
 
+        Schema::table('clients', function (Blueprint $table) {
+            $table->timestamp('email_verified_at')->nullable();
+            $table->boolean('address_storage_enabled')->default(false);
+        });
+
         Schema::create('customer_addresses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
@@ -170,6 +177,40 @@ class ClientApiTest extends TestCase
             $table->string('complement')->nullable();
             $table->text('reference')->nullable();
             $table->boolean('is_default')->default(false);
+            $table->timestamps();
+        });
+
+        Schema::create('client_verification_challenges', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('client_id')->constrained()->cascadeOnDelete();
+            $table->string('purpose', 32);
+            $table->string('email');
+            $table->string('code_hash', 64);
+            $table->unsignedTinyInteger('attempts')->default(0);
+            $table->timestamp('expires_at')->index();
+            $table->timestamp('consumed_at')->nullable();
+            $table->timestamps();
+            $table->index(['client_id', 'purpose', 'created_at']);
+        });
+
+        Schema::create('client_sensitive_access_grants', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('client_id')->constrained()->cascadeOnDelete();
+            $table->string('token_hash', 64)->unique();
+            $table->timestamp('expires_at')->index();
+            $table->timestamps();
+        });
+
+        Schema::create('setting_emails', function (Blueprint $table) {
+            $table->id();
+            $table->string('mail_mailer')->nullable();
+            $table->string('mail_host')->nullable();
+            $table->string('mail_port')->nullable();
+            $table->string('mail_username')->nullable();
+            $table->text('mail_password')->nullable();
+            $table->string('mail_encryption')->nullable();
+            $table->string('mail_from_address')->nullable();
+            $table->string('mail_from_name')->nullable();
             $table->timestamps();
         });
 
@@ -197,6 +238,13 @@ class ClientApiTest extends TestCase
         ]);
         $tenant->makeCurrent();
 
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('client_id');
+            $table->timestamps();
+        });
+
         $client = Client::create([
             'tenant_id' => $tenant->id,
             'name' => 'Ana Cliente',
@@ -205,6 +253,9 @@ class ClientApiTest extends TestCase
             'password' => Hash::make('not-used-by-delivery-api'),
             'active' => true,
         ]);
+        $client->email_verified_at = now();
+        $client->save();
+        $sensitiveAccessToken = $this->createSensitiveAccessGrant($client);
 
         $login = $this->postJson('/api/client/login', [
             'name' => 'Ana Cliente',
@@ -223,29 +274,39 @@ class ClientApiTest extends TestCase
             'password' => Hash::make('not-used-by-delivery-api'),
             'active' => true,
         ]);
+        $otherClient->email_verified_at = now();
+        $otherClient->save();
 
         $this->withToken($otherClient->createToken('delivery')->plainTextToken)
+            ->withHeader('X-Client-Verification', $this->createSensitiveAccessGrant($otherClient))
             ->patchJson('/api/client/me', ['phone' => '11999999999'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['phone']);
         Auth::forgetGuards();
 
         $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
+            ->patchJson('/api/client/me', ['email' => 'ana.nova@example.com'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->patchJson('/api/client/me', [
                 'name' => 'Ana Silva',
                 'phone' => '11988887777',
-                'email' => 'ana.nova@example.com',
                 'password' => 'new-password-123',
             ])
             ->assertOk()
             ->assertJsonPath('data.name', 'Ana Silva')
             ->assertJsonPath('data.phone', '11988887777')
-            ->assertJsonPath('data.email', 'ana.nova@example.com');
+            ->assertJsonPath('data.email', 'ana@example.com');
 
-        $this->assertDatabaseHas('clients', ['email' => 'ana.nova@example.com']);
+        $this->assertDatabaseHas('clients', ['email' => 'ana@example.com']);
         $this->assertTrue(Hash::check('new-password-123', $client->fresh()->password));
 
         $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->deleteJson('/api/client/me')
             ->assertOk()
             ->assertJsonPath('message', 'Conta excluída com sucesso.');
@@ -274,11 +335,15 @@ class ClientApiTest extends TestCase
             'password' => Hash::make('not-used-by-delivery-api'),
             'active' => true,
         ]);
+        $client->email_verified_at = now();
+        $client->save();
+        $sensitiveAccessToken = $this->createSensitiveAccessGrant($client);
 
         activity()->enableLogging();
 
         try {
             $this->withToken($client->createToken('delivery')->plainTextToken)
+                ->withHeader('X-Client-Verification', $sensitiveAccessToken)
                 ->patchJson('/api/client/me', ['name' => 'Ana Silva'])
                 ->assertOk();
 
@@ -290,8 +355,8 @@ class ClientApiTest extends TestCase
             $this->assertSame(Client::class, $activity->causer_type);
             $this->assertSame($client->id, $activity->causer_id);
             $this->assertSame('Ana Silva', $activity->causer->name);
-            $this->assertSame(1, (new AuditCountRepository())->auditCount());
-            $this->assertCount(1, (new AuditCountRepository())->allAudit());
+            $this->assertSame(1, (new AuditCountRepository)->auditCount());
+            $this->assertCount(1, (new AuditCountRepository)->allAudit());
         } finally {
             activity()->disableLogging();
         }
@@ -349,6 +414,10 @@ class ClientApiTest extends TestCase
             'password' => Hash::make('not-used-by-delivery-api'),
             'active' => true,
         ]);
+        $client->email_verified_at = now();
+        $client->address_storage_enabled = true;
+        $client->save();
+        $sensitiveAccessToken = $this->createSensitiveAccessGrant($client);
         $otherClient = Client::create([
             'tenant_id' => $tenant->id,
             'name' => 'Outro Cliente',
@@ -371,6 +440,7 @@ class ClientApiTest extends TestCase
         ];
 
         $firstAddress = $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->postJson('/api/client/addresses', $payload)
             ->assertCreated()
             ->assertJsonPath('data.title', 'Casa')
@@ -379,6 +449,7 @@ class ClientApiTest extends TestCase
             ->json('data.id');
 
         $secondAddress = $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->postJson('/api/client/addresses', array_merge($payload, [
                 'title' => 'Trabalho',
                 'is_default' => true,
@@ -397,16 +468,19 @@ class ClientApiTest extends TestCase
         ]);
 
         $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->getJson('/api/client/addresses')
             ->assertOk()
             ->assertJsonCount(2, 'data');
 
         $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->postJson('/api/client/addresses', $payload)
             ->assertUnprocessable();
         $this->assertDatabaseCount('customer_addresses', 2);
 
         $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->patchJson("/api/client/addresses/{$secondAddress}", [
                 'street' => 'Rua Nova',
             ])
@@ -425,10 +499,12 @@ class ClientApiTest extends TestCase
         ]);
 
         $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->getJson("/api/client/addresses/{$foreignAddress->id}")
             ->assertNotFound();
 
         $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->deleteJson("/api/client/addresses/{$secondAddress}")
             ->assertOk();
         $this->assertDatabaseMissing('customer_addresses', ['id' => $secondAddress]);
@@ -444,6 +520,13 @@ class ClientApiTest extends TestCase
         ]);
         $tenant->makeCurrent();
 
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('client_id');
+            $table->timestamps();
+        });
+
         $this->getJson('/api/client/addresses')
             ->assertUnauthorized()
             ->assertJson(['message' => 'Não autenticado.']);
@@ -451,6 +534,241 @@ class ClientApiTest extends TestCase
         $this->postJson('/api/client/addresses', [])
             ->assertUnauthorized()
             ->assertJson(['message' => 'Não autenticado.']);
+
+        $client = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Conta protegida',
+            'phone' => '11922223333',
+            'email' => 'protegida@example.com',
+            'password' => Hash::make('not-used-by-delivery-api'),
+            'active' => true,
+        ]);
+
+        $token = $client->createToken('delivery')->plainTextToken;
+        $this->withToken($token)
+            ->getJson('/api/client/addresses')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_email_verification_required');
+
+        $this->withToken($token)
+            ->putJson('/api/client/address-storage', ['address_storage_enabled' => false])
+            ->assertOk()
+            ->assertJsonPath('data.address_storage_enabled', false);
+        $this->withToken($token)
+            ->putJson('/api/client/address-storage', ['address_storage_enabled' => true])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('address_storage_enabled');
+    }
+
+    public function test_client_must_confirm_email_and_a_one_time_code_before_viewing_private_data(): void
+    {
+        Mail::fake();
+
+        $tenant = Tenant::create([
+            'name' => 'Delivery',
+            'slug' => 'delivery',
+            'domain' => 'localhost',
+            'active' => true,
+        ]);
+        $tenant->makeCurrent();
+
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('client_id');
+            $table->timestamps();
+        });
+
+        $client = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => null,
+            'password' => null,
+            'active' => true,
+        ]);
+        $token = $client->createToken('delivery')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/client/email-verification/request', [
+                'email' => 'ana@example.com',
+            ])
+            ->assertOk();
+
+        $emailCode = null;
+        Mail::assertSent(ClientVerificationCodeMail::class, function ($mail) use (&$emailCode) {
+            $emailCode = $mail->code;
+
+            return true;
+        });
+        $storedCodeHash = DB::table('client_verification_challenges')
+            ->where('client_id', $client->id)
+            ->value('code_hash');
+        $this->assertNotSame($emailCode, $storedCodeHash);
+        $this->assertSame(
+            hash_hmac('sha256', $emailCode, (string) config('app.key')),
+            $storedCodeHash
+        );
+
+        $this->withToken($token)
+            ->postJson('/api/client/email-verification/confirm', [
+                'code' => $emailCode,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.has_email', true)
+            ->assertJsonPath('data.email_verified', true)
+            ->assertJsonMissingPath('data.email')
+            ->assertJsonMissingPath('data.name')
+            ->assertJsonMissingPath('data.phone')
+            ->assertJsonMissingPath('data.path_image');
+
+        Auth::forgetGuards();
+        $this->withToken($token)
+            ->getJson('/api/client/addresses')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_verification_required');
+        $this->withToken($token)
+            ->getJson('/api/client/me')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_verification_required');
+        $this->withToken($token)
+            ->getJson('/api/client/orders')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_verification_required');
+
+        $this->withToken($token)
+            ->postJson('/api/client/sensitive-access/request')
+            ->assertOk();
+
+        $codes = [];
+        Mail::assertSent(ClientVerificationCodeMail::class, function ($mail) use (&$codes) {
+            $codes[] = $mail->code;
+
+            return true;
+        });
+        $sensitiveCode = end($codes);
+
+        $grantResponse = $this->withToken($token)
+            ->postJson('/api/client/sensitive-access/confirm', [
+                'code' => $sensitiveCode,
+            ])
+            ->assertOk();
+        $this->withToken($token)
+            ->postJson('/api/client/sensitive-access/confirm', [
+                'code' => $sensitiveCode,
+            ])
+            ->assertUnprocessable();
+
+        $grant = $grantResponse->json('data.token');
+        $this->withToken($token)
+            ->withHeader('X-Client-Verification', $grant)
+            ->getJson('/api/client/addresses')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_client_with_existing_order_cannot_bind_a_new_email_from_phone_login_alone(): void
+    {
+        $tenant = Tenant::create([
+            'name' => 'Delivery',
+            'slug' => 'delivery',
+            'domain' => 'localhost',
+            'active' => true,
+        ]);
+        $tenant->makeCurrent();
+
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('client_id');
+            $table->timestamps();
+        });
+
+        $client = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => null,
+            'password' => null,
+            'active' => true,
+        ]);
+        DB::table('orders')->insert([
+            'tenant_id' => $tenant->id,
+            'client_id' => $client->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $token = $client->createToken('delivery')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/client/email-verification/request', [
+                'email' => 'attacker@example.com',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('client_verification_challenges', 0);
+        $this->assertNull($client->fresh()->email);
+    }
+
+    public function test_changing_a_verified_email_requires_sensitive_access_and_confirms_the_new_address(): void
+    {
+        Mail::fake();
+
+        $tenant = Tenant::create([
+            'name' => 'Delivery',
+            'slug' => 'delivery',
+            'domain' => 'localhost',
+            'active' => true,
+        ]);
+        $tenant->makeCurrent();
+
+        $client = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => 'ana@example.com',
+            'password' => null,
+            'active' => true,
+        ]);
+        $client->email_verified_at = now();
+        $client->save();
+        $accessToken = $this->createSensitiveAccessGrant($client);
+        $authToken = $client->createToken('delivery')->plainTextToken;
+
+        $this->withToken($authToken)
+            ->postJson('/api/client/email-verification/request', [
+                'email' => 'ana.nova@example.com',
+            ])
+            ->assertForbidden();
+
+        $this->withToken($authToken)
+            ->withHeader('X-Client-Verification', $accessToken)
+            ->postJson('/api/client/email-verification/request', [
+                'email' => 'ana.nova@example.com',
+            ])
+            ->assertOk();
+
+        $code = null;
+        Mail::assertSent(ClientVerificationCodeMail::class, function ($mail) use (&$code) {
+            $code = $mail->code;
+
+            return true;
+        });
+
+        $this->withToken($authToken)
+            ->postJson('/api/client/email-verification/confirm', ['code' => $code])
+            ->assertOk()
+            ->assertJsonPath('data.email_verified', true)
+            ->assertJsonMissingPath('data.email')
+            ->assertJsonMissingPath('data.name')
+            ->assertJsonMissingPath('data.phone')
+            ->assertJsonMissingPath('data.path_image');
+
+        $this->assertDatabaseHas('clients', [
+            'id' => $client->id,
+            'email' => 'ana.nova@example.com',
+        ]);
+        $this->assertDatabaseCount('client_sensitive_access_grants', 0);
     }
 
     public function test_authenticated_client_can_place_order_without_resending_profile_details(): void
@@ -475,7 +793,9 @@ class ClientApiTest extends TestCase
             $table->string('number');
             $table->string('customer_name');
             $table->string('customer_phone', 20);
+            $table->string('customer_email')->nullable();
             $table->json('delivery_address')->nullable();
+            $table->string('delivery_method', 20)->nullable();
             $table->string('status');
             $table->string('payment_status');
             $table->string('payment_method', 50)->nullable();
@@ -519,7 +839,7 @@ class ClientApiTest extends TestCase
             'tenant_id' => $tenant->id,
             'name' => 'Ana Cliente',
             'phone' => '11999999999',
-            'email' => 'ana@example.com',
+            'email' => null,
             'password' => Hash::make('not-used-by-delivery-api'),
             'active' => true,
         ]);
@@ -612,6 +932,63 @@ class ClientApiTest extends TestCase
             ])
             ->assertCreated();
 
+        $deliveryAddress = [
+            'recipient_name' => 'Ana Cliente',
+            'zip_code' => '12345-678',
+            'state' => 'SP',
+            'city' => 'São Paulo',
+            'neighborhood' => 'Centro',
+            'street' => 'Rua sem salvar',
+            'number' => '10',
+        ];
+
+        $notSavedOrderId = $this->withToken($token)
+            ->postJson('/api/client/orders', [
+                'delivery_method' => 'delivery',
+                'save_address' => false,
+                'customer_email' => 'pedido@example.com',
+                'delivery_address' => $deliveryAddress,
+                'items' => [['product_id' => $unlimitedProductId, 'quantity' => 1]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $notSavedOrderId,
+            'customer_email' => 'pedido@example.com',
+            'delivery_method' => 'delivery',
+        ]);
+        $this->assertDatabaseCount('customer_addresses', 0);
+        $this->assertFalse((bool) $client->fresh()->address_storage_enabled);
+        $this->assertNull($client->fresh()->email);
+        $this->assertSame(
+            'Rua sem salvar',
+            json_decode(DB::table('orders')->where('id', $notSavedOrderId)->value('delivery_address'), true)['street']
+        );
+
+        $client->email = 'ana@example.com';
+        $client->email_verified_at = now();
+        $client->save();
+        $savedAddress = array_merge($deliveryAddress, ['street' => 'Rua Salva']);
+        $savedOrderId = $this->withToken($token)
+            ->postJson('/api/client/orders', [
+                'delivery_method' => 'delivery',
+                'save_address' => true,
+                'delivery_address' => $savedAddress,
+                'items' => [['product_id' => $unlimitedProductId, 'quantity' => 1]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->assertDatabaseCount('customer_addresses', 1);
+        $this->assertTrue((bool) $client->fresh()->address_storage_enabled);
+        DB::table('customer_addresses')->where('client_id', $client->id)
+            ->update(['street' => 'Rua atualizada']);
+        $this->assertSame(
+            'Rua Salva',
+            json_decode(DB::table('orders')->where('id', $savedOrderId)->value('delivery_address'), true)['street']
+        );
+
         $this->assertSame(
             ['control' => 0, 'quantity' => 1],
             json_decode(DB::table('products')->where('id', $unlimitedProductId)->value('stock'), true)
@@ -633,7 +1010,7 @@ class ClientApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('store_hours');
 
-        $this->assertDatabaseCount('orders', 2);
+        $this->assertDatabaseCount('orders', 4);
         $this->assertSame(
             ['control' => 0, 'quantity' => 1],
             json_decode(DB::table('products')->where('id', $unlimitedProductId)->value('stock'), true)
@@ -846,6 +1223,13 @@ class ClientApiTest extends TestCase
             'active' => true,
         ]);
         $tenant->makeCurrent();
+
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('client_id');
+            $table->timestamps();
+        });
 
         $this->postJson('/api/client/login', [
             'name' => 'Ana Cliente',
@@ -1084,7 +1468,9 @@ class ClientApiTest extends TestCase
             $table->unsignedBigInteger('client_id');
             $table->string('customer_name');
             $table->string('customer_phone');
+            $table->string('customer_email')->nullable();
             $table->json('delivery_address')->nullable();
+            $table->string('delivery_method', 20)->nullable();
             $table->string('status');
             $table->string('payment_status');
             $table->string('payment_method', 50)->nullable();
@@ -1251,5 +1637,17 @@ class ClientApiTest extends TestCase
             'close_time' => $closeTime,
             'is_closed' => false,
         ], range(1, 7));
+    }
+
+    private function createSensitiveAccessGrant(Client $client): string
+    {
+        $token = Str::random(64);
+
+        $client->sensitiveAccessGrants()->create([
+            'token_hash' => hash('sha256', $token),
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        return $token;
     }
 }

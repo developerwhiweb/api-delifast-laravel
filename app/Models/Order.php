@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Client;
-use App\Models\OrderItem;
 use App\Services\ActivityLogService;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,14 +14,16 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class Order extends Model
 {
-    use Notifiable, HasFactory, LogsActivity, BelongsToTenant;
+    use BelongsToTenant, HasFactory, LogsActivity, Notifiable;
 
     protected $fillable = [
         'number',
         'client_id',
         'customer_name',
         'customer_phone',
+        'customer_email',
         'delivery_address',
+        'delivery_method',
         'status',
         'payment_status',
         'payment_method',
@@ -63,7 +63,7 @@ class Order extends Model
     public function getActivitylogOptions(): LogOptions
     {
         $activityLogService = new ActivityLogService($this);
-        
+
         return LogOptions::defaults()
             ->logOnly($activityLogService->getLoggableAttributes());
     }

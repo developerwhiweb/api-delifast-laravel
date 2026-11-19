@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Client;
 use App\Models\Contact;
 use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tenant;
+use App\Services\ClientSecurityService;
 use App\Services\CouponService;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
@@ -42,15 +44,30 @@ class OrderController extends Controller
     /**
      * Registrar um novo pedido.
      */
-    public function store(Request $request, CouponService $couponService): JsonResponse
-    {
+    public function store(
+        Request $request,
+        CouponService $couponService,
+        ClientSecurityService $clientSecurity
+    ): JsonResponse {
         $client = $request->user();
 
         $validated = $request->validate([
-            'delivery_address' => [
-                'nullable',
-                'array',
-            ],
+            'delivery_address' => ['nullable', 'array'],
+            'delivery_address.title' => ['nullable', 'string', 'max:255'],
+            'delivery_address.recipient_name' => ['required_with:delivery_address', 'string', 'max:255'],
+            'delivery_address.zip_code' => ['required_with:delivery_address', 'string', 'max:9', 'regex:/^\d{5}-?\d{3}$/'],
+            'delivery_address.state' => ['required_with:delivery_address', 'string', 'size:2'],
+            'delivery_address.city' => ['required_with:delivery_address', 'string', 'max:255'],
+            'delivery_address.neighborhood' => ['required_with:delivery_address', 'string', 'max:255'],
+            'delivery_address.street' => ['required_with:delivery_address', 'string', 'max:255'],
+            'delivery_address.number' => ['required_with:delivery_address', 'string', 'max:30'],
+            'delivery_address.complement' => ['nullable', 'string', 'max:255'],
+            'delivery_address.reference' => ['nullable', 'string', 'max:2000'],
+            'delivery_address.is_default' => ['nullable', 'boolean'],
+            'delivery_method' => ['nullable', 'in:delivery,pickup,local'],
+            'address_id' => ['nullable', 'integer'],
+            'save_address' => ['nullable', 'boolean'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
 
             'notes' => [
                 'nullable',
@@ -127,10 +144,106 @@ class OrderController extends Controller
             'items.*.selected_size_name' => ['nullable', 'string', 'max:100'],
         ]);
 
+        $deliveryMethod = $validated['delivery_method']
+            ?? (! empty($validated['delivery_address']) ? 'delivery' : 'pickup');
+        $addressId = $validated['address_id'] ?? null;
+        $saveAddress = filter_var(
+            $validated['save_address'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        if ($deliveryMethod === 'delivery' && ! $addressId && empty($validated['delivery_address'])) {
+            throw ValidationException::withMessages([
+                'delivery_address' => 'Informe o endereço necessário para a entrega.',
+            ]);
+        }
+
+        if ($deliveryMethod !== 'delivery' && ($addressId || $saveAddress)) {
+            throw ValidationException::withMessages([
+                'delivery_address' => 'Endereços salvos só podem ser usados em pedidos com entrega.',
+            ]);
+        }
+
+        if ($addressId && ! $saveAddress) {
+            throw ValidationException::withMessages([
+                'save_address' => 'Selecione a opção de armazenamento para usar um endereço da conta.',
+            ]);
+        }
+
         $tenant = Tenant::current();
 
-        $order = DB::transaction(function () use ($validated, $tenant, $client, $couponService) {
+        $order = DB::transaction(function () use (
+            $validated,
+            $tenant,
+            $client,
+            $couponService,
+            $clientSecurity,
+            $request,
+            $deliveryMethod,
+            $addressId,
+            $saveAddress
+        ) {
+            $client = Client::query()
+                ->lockForUpdate()
+                ->findOrFail($client->id);
+
             $this->assertStoreIsOpen($tenant);
+
+            $deliveryAddress = $deliveryMethod === 'delivery'
+                ? ($validated['delivery_address'] ?? null)
+                : null;
+            if ($deliveryMethod === 'delivery' && $addressId) {
+                if (! $client->address_storage_enabled || ! $client->email_verified_at) {
+                    throw ValidationException::withMessages([
+                        'address_id' => 'Ative o armazenamento após confirmar o e-mail para usar endereços salvos.',
+                    ]);
+                }
+
+                $clientSecurity->assertSensitiveAccess($request, $client);
+                $savedAddress = $client->addresses()->lockForUpdate()->findOrFail($addressId);
+                $deliveryAddress = $savedAddress->only([
+                    'title',
+                    'recipient_name',
+                    'zip_code',
+                    'state',
+                    'city',
+                    'neighborhood',
+                    'street',
+                    'number',
+                    'complement',
+                    'reference',
+                ]);
+            }
+
+            if ($deliveryMethod === 'delivery') {
+                if ($saveAddress && (! $client->email || ! $client->email_verified_at)) {
+                    throw ValidationException::withMessages([
+                        'save_address' => 'Confirme um e-mail para salvar o endereço na conta.',
+                    ]);
+                }
+
+                if ($saveAddress && ! $addressId) {
+                    if ($client->addresses()->count() >= 2) {
+                        throw ValidationException::withMessages([
+                            'save_address' => 'A conta pode manter no máximo 2 endereços salvos.',
+                        ]);
+                    }
+
+                    $addressToSave = $deliveryAddress;
+                    $addressToSave['title'] = $addressToSave['title'] ?? 'Casa';
+                    $addressToSave['is_default'] = filter_var(
+                        $addressToSave['is_default'] ?? false,
+                        FILTER_VALIDATE_BOOLEAN
+                    ) || $client->addresses()->doesntExist();
+                    if ($addressToSave['is_default']) {
+                        $client->addresses()->update(['is_default' => false]);
+                    }
+                    $client->addresses()->create($addressToSave);
+                }
+
+                $client->address_storage_enabled = $saveAddress;
+                $client->save();
+            }
 
             $cartItems = array_values($validated['items']);
             $couponCode = trim((string) ($validated['coupon_code'] ?? ''));
@@ -144,7 +257,7 @@ class OrderController extends Controller
                     true
                 );
 
-                if (!$couponQuote['valid']) {
+                if (! $couponQuote['valid']) {
                     throw ValidationException::withMessages([
                         'coupon_code' => $couponQuote['message'],
                     ]);
@@ -218,8 +331,10 @@ class OrderController extends Controller
                 'client_id' => $client->id,
                 'customer_name' => $client->name,
                 'customer_phone' => $client->phone,
+                'customer_email' => $validated['customer_email'] ?? null,
 
-                'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_address' => $deliveryAddress,
+                'delivery_method' => $deliveryMethod,
 
                 'status' => 'pending',
                 'payment_status' => 'pending',
@@ -284,7 +399,7 @@ class OrderController extends Controller
 
     private function storeIsOpenAt(?array $openingHours, CarbonInterface $date): ?bool
     {
-        if (!is_array($openingHours) || count($openingHours) !== 7) {
+        if (! is_array($openingHours) || count($openingHours) !== 7) {
             return null;
         }
 
@@ -292,9 +407,9 @@ class OrderController extends Controller
 
         foreach ($openingHours as $schedule) {
             if (
-                !is_array($schedule)
-                || !array_key_exists('day_of_week', $schedule)
-                || !array_key_exists('is_closed', $schedule)
+                ! is_array($schedule)
+                || ! array_key_exists('day_of_week', $schedule)
+                || ! array_key_exists('is_closed', $schedule)
             ) {
                 return null;
             }
@@ -319,7 +434,7 @@ class OrderController extends Controller
             $openMinutes = $this->timeToMinutes($schedule['open_time'] ?? null);
             $closeMinutes = $this->timeToMinutes($schedule['close_time'] ?? null);
 
-            if (!$isClosed && ($openMinutes === null || $closeMinutes === null)) {
+            if (! $isClosed && ($openMinutes === null || $closeMinutes === null)) {
                 return null;
             }
 
@@ -361,7 +476,7 @@ class OrderController extends Controller
         $closeMinutes = $schedule['close_minutes'];
 
         if ($openMinutes < $closeMinutes) {
-            return !$isPreviousDay
+            return ! $isPreviousDay
                 && $currentMinutes >= $openMinutes
                 && $currentMinutes < $closeMinutes;
         }
@@ -377,7 +492,7 @@ class OrderController extends Controller
 
     private function timeToMinutes(mixed $time): ?int
     {
-        if (!is_string($time) || !preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time, $matches)) {
+        if (! is_string($time) || ! preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time, $matches)) {
             return null;
         }
 
@@ -388,7 +503,7 @@ class OrderController extends Controller
     {
         $stock = $product->stock ?? [];
 
-        if (!filter_var($stock['control'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+        if (! filter_var($stock['control'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
             return;
         }
 
@@ -478,7 +593,7 @@ class OrderController extends Controller
     private function generateOrderNumber(int $tenantId): string
     {
         do {
-            $number = 'PED-' . now()->format('ymd') . '-' . Str::upper(
+            $number = 'PED-'.now()->format('ymd').'-'.Str::upper(
                 Str::random(6)
             );
 

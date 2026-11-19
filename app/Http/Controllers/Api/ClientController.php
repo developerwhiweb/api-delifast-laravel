@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Modules\Client\Business\ClientService;
 use App\Modules\Client\DTO\ClientData;
+use App\Services\ClientSecurityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -13,7 +14,10 @@ use Illuminate\Validation\Rule;
 
 class ClientController extends Controller
 {
-    public function __construct(protected ClientService $service) {}
+    public function __construct(
+        protected ClientService $service,
+        protected ClientSecurityService $security
+    ) {}
 
     public function show(Request $request): JsonResponse
     {
@@ -36,17 +40,17 @@ class ClientController extends Controller
                     ->where('tenant_id', $client->tenant_id)
                     ->ignore($client->id),
             ],
-            'email' => [
-                'sometimes',
-                'nullable',
-                'email',
-                'max:255',
-                Rule::unique('clients', 'email')->ignore($client->id),
-            ],
             'password' => ['sometimes', 'nullable', 'string', 'min:8'],
             'path_image' => ['sometimes', 'nullable', 'file', 'image', 'max:2048'],
             'delete_path_image' => ['sometimes', 'boolean'],
         ]);
+
+        if ($request->exists('email')) {
+            return response()->json([
+                'message' => 'O e-mail só pode ser cadastrado ou alterado pelo fluxo de confirmação.',
+                'errors' => ['email' => ['Confirme a identidade e o novo e-mail antes de alterá-lo.']],
+            ], 422);
+        }
 
         if ($validator->fails()) {
             return response()->json([
@@ -82,6 +86,21 @@ class ClientController extends Controller
         ]);
     }
 
+    public function updateAddressStorage(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'address_storage_enabled' => ['required', 'boolean'],
+        ]);
+
+        return response()->json([
+            'message' => 'Preferência de armazenamento atualizada.',
+            'data' => $this->security->updateAddressStorage(
+                $this->client($request),
+                filter_var($validated['address_storage_enabled'], FILTER_VALIDATE_BOOLEAN)
+            ),
+        ]);
+    }
+
     public function destroy(Request $request): JsonResponse
     {
         $client = $this->client($request);
@@ -107,6 +126,12 @@ class ClientController extends Controller
             'name' => $client->name,
             'phone' => $client->phone,
             'email' => $client->email,
+            'has_email' => (bool) $client->email,
+            'email_verified' => (bool) $client->email_verified_at,
+            'address_storage_enabled' => (bool) $client->address_storage_enabled,
+            'can_bind_email' => ! $client->email
+                && ! $client->orders()->exists()
+                && ! $client->addresses()->exists(),
             'path_image' => $client->path_image,
         ];
     }
