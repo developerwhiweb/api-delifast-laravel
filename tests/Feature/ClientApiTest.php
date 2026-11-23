@@ -397,7 +397,7 @@ class ClientApiTest extends TestCase
             ->assertJson(['message' => 'Não autenticado.']);
     }
 
-    public function test_authenticated_client_can_manage_up_to_two_private_addresses(): void
+    public function test_authenticated_client_can_manage_one_private_address(): void
     {
         $tenant = Tenant::create([
             'name' => 'Delivery',
@@ -449,40 +449,36 @@ class ClientApiTest extends TestCase
             ->assertJsonPath('data.is_default', true)
             ->json('data.id');
 
-        $secondAddress = $this->withToken($token)
+        $this->withToken($token)
             ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->postJson('/api/client/addresses', array_merge($payload, [
                 'title' => 'Trabalho',
                 'is_default' => true,
             ]))
-            ->assertCreated()
-            ->assertJsonPath('data.is_default', true)
-            ->json('data.id');
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'O cliente pode cadastrar no máximo 1 endereço.');
 
         $this->assertDatabaseHas('customer_addresses', [
             'id' => $firstAddress,
-            'is_default' => false,
-        ]);
-        $this->assertDatabaseHas('customer_addresses', [
-            'id' => $secondAddress,
             'is_default' => true,
         ]);
+        $this->assertDatabaseCount('customer_addresses', 1);
 
         $this->withToken($token)
             ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->getJson('/api/client/addresses')
             ->assertOk()
-            ->assertJsonCount(2, 'data');
+            ->assertJsonCount(1, 'data');
 
         $this->withToken($token)
             ->withHeader('X-Client-Verification', $sensitiveAccessToken)
             ->postJson('/api/client/addresses', $payload)
             ->assertUnprocessable();
-        $this->assertDatabaseCount('customer_addresses', 2);
+        $this->assertDatabaseCount('customer_addresses', 1);
 
         $this->withToken($token)
             ->withHeader('X-Client-Verification', $sensitiveAccessToken)
-            ->patchJson("/api/client/addresses/{$secondAddress}", [
+            ->patchJson("/api/client/addresses/{$firstAddress}", [
                 'street' => 'Rua Nova',
             ])
             ->assertOk()
@@ -506,9 +502,17 @@ class ClientApiTest extends TestCase
 
         $this->withToken($token)
             ->withHeader('X-Client-Verification', $sensitiveAccessToken)
-            ->deleteJson("/api/client/addresses/{$secondAddress}")
+            ->deleteJson("/api/client/addresses/{$firstAddress}")
             ->assertOk();
-        $this->assertDatabaseMissing('customer_addresses', ['id' => $secondAddress]);
+        $this->assertDatabaseMissing('customer_addresses', ['id' => $firstAddress]);
+
+        $this->withToken($token)
+            ->withHeader('X-Client-Verification', $sensitiveAccessToken)
+            ->postJson('/api/client/addresses', array_merge($payload, [
+                'title' => 'Trabalho',
+            ]))
+            ->assertCreated();
+        $this->assertSame(1, $client->addresses()->count());
     }
 
     public function test_customer_address_routes_require_client_authentication(): void
@@ -1094,6 +1098,21 @@ class ClientApiTest extends TestCase
             'Rua Salva',
             json_decode(DB::table('orders')->where('id', $savedOrderId)->value('delivery_address'), true)['street']
         );
+
+        $this->withToken($token)
+            ->postJson('/api/client/orders', [
+                'delivery_method' => 'delivery',
+                'save_address' => true,
+                'delivery_address' => array_merge($savedAddress, ['street' => 'Outra Rua']),
+                'items' => [['product_id' => $unlimitedProductId, 'quantity' => 1]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('save_address')
+            ->assertJsonPath(
+                'errors.save_address.0',
+                'A conta pode manter no máximo 1 endereço salvo.'
+            );
+        $this->assertDatabaseCount('customer_addresses', 1);
 
         $this->assertSame(
             ['control' => 0, 'quantity' => 1],

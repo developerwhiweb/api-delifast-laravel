@@ -40,9 +40,9 @@ class CustomerAddress extends Controller
                 ->lockForUpdate()
                 ->findOrFail($client->id);
 
-            if ($client->addresses()->count() >= 2) {
+            if ($client->addresses()->count() >= 1) {
                 return response()->json([
-                    'message' => 'O cliente pode cadastrar no máximo 2 endereços.',
+                    'message' => 'O cliente pode cadastrar no máximo 1 endereço.',
                 ], 422);
             }
 

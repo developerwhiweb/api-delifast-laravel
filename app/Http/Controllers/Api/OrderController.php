@@ -222,9 +222,9 @@ class OrderController extends Controller
                 }
 
                 if ($saveAddress && ! $addressId) {
-                    if ($client->addresses()->count() >= 2) {
+                    if ($client->addresses()->count() >= 1) {
                         throw ValidationException::withMessages([
-                            'save_address' => 'A conta pode manter no máximo 2 endereços salvos.',
+                            'save_address' => 'A conta pode manter no máximo 1 endereço salvo.',
                         ]);
                     }
 
