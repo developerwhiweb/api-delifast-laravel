@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -588,6 +589,20 @@ class ClientApiTest extends TestCase
             'active' => true,
         ]);
         $token = $client->createToken('delivery')->plainTextToken;
+        RateLimiter::clear(sha1((string) $client->id));
+
+        $this->withToken($token)
+            ->getJson('/api/client/addresses')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_email_verification_required');
+        $this->withToken($token)
+            ->getJson('/api/client/me')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_email_verification_required');
+        $this->withToken($token)
+            ->getJson('/api/client/orders')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_email_verification_required');
 
         $this->withToken($token)
             ->postJson('/api/client/email-verification/request', [
@@ -609,6 +624,45 @@ class ClientApiTest extends TestCase
             hash_hmac('sha256', $emailCode, (string) config('app.key')),
             $storedCodeHash
         );
+
+        $this->withToken($token)
+            ->postJson('/api/client/email-verification/confirm', [
+                'code' => $emailCode === '000000' ? '000001' : '000000',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code']);
+
+        $this->assertNull($client->fresh()->email);
+        DB::table('client_verification_challenges')
+            ->where('client_id', $client->id)
+            ->update(['expires_at' => now()->subMinute()]);
+
+        $this->withToken($token)
+            ->postJson('/api/client/email-verification/confirm', [
+                'code' => $emailCode,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code']);
+
+        $this->assertNull($client->fresh()->email);
+        $this->withToken($token)
+            ->getJson('/api/client/addresses')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'client_email_verification_required');
+
+        $this->withToken($token)
+            ->postJson('/api/client/email-verification/request', [
+                'email' => 'ana@example.com',
+            ])
+            ->assertOk();
+
+        $codes = [];
+        Mail::assertSent(ClientVerificationCodeMail::class, function ($mail) use (&$codes) {
+            $codes[] = $mail->code;
+
+            return true;
+        });
+        $emailCode = end($codes);
 
         $this->withToken($token)
             ->postJson('/api/client/email-verification/confirm', [
@@ -636,6 +690,7 @@ class ClientApiTest extends TestCase
             ->assertForbidden()
             ->assertJsonPath('code', 'client_verification_required');
 
+        RateLimiter::clear(sha1((string) $client->id));
         $this->withToken($token)
             ->postJson('/api/client/sensitive-access/request')
             ->assertOk();
@@ -955,7 +1010,7 @@ class ClientApiTest extends TestCase
 
         $this->assertDatabaseHas('orders', [
             'id' => $notSavedOrderId,
-            'customer_email' => 'pedido@example.com',
+            'customer_email' => null,
             'delivery_method' => 'delivery',
         ]);
         $this->assertDatabaseCount('customer_addresses', 0);
@@ -967,6 +1022,21 @@ class ClientApiTest extends TestCase
         );
 
         $client->email = 'ana@example.com';
+        $client->save();
+        $unverifiedOrderId = $this->withToken($token)
+            ->postJson('/api/client/orders', [
+                'customer_email' => 'nao-associado@example.com',
+                'items' => [['product_id' => $unlimitedProductId, 'quantity' => 1]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $this->assertDatabaseHas('orders', [
+            'id' => $unverifiedOrderId,
+            'client_id' => $client->id,
+            'customer_email' => 'ana@example.com',
+        ]);
+        $this->assertNull($client->fresh()->email_verified_at);
+
         $client->email_verified_at = now();
         $client->save();
         $savedAddress = array_merge($deliveryAddress, ['street' => 'Rua Salva']);
@@ -1010,7 +1080,7 @@ class ClientApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('store_hours');
 
-        $this->assertDatabaseCount('orders', 4);
+        $this->assertDatabaseCount('orders', 5);
         $this->assertSame(
             ['control' => 0, 'quantity' => 1],
             json_decode(DB::table('products')->where('id', $unlimitedProductId)->value('stock'), true)
@@ -1234,15 +1304,42 @@ class ClientApiTest extends TestCase
         $this->postJson('/api/client/login', [
             'name' => 'Ana Cliente',
             'phone' => '11999999999',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        $this->assertDatabaseCount('clients', 0);
+
+        $newClientId = $this->postJson('/api/client/login', [
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => ' ANA@EXAMPLE.COM ',
         ])->assertCreated()
             ->assertJsonPath('message', 'Conta criada e login realizado com sucesso.')
-            ->assertJsonPath('data.client.email', null);
+            ->assertJsonPath('data.client.has_email', true)
+            ->assertJsonPath('data.client.email_verified', false)
+            ->json('data.client.id');
+
+        $this->assertDatabaseHas('clients', [
+            'id' => $newClientId,
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => 'ana@example.com',
+            'email_verified_at' => null,
+        ]);
 
         $this->postJson('/api/client/login', [
             'name' => 'Ana Cliente',
             'phone' => '11999999999',
         ])->assertOk()
-            ->assertJsonPath('message', 'Login realizado com sucesso.');
+            ->assertJsonPath('message', 'Login realizado com sucesso.')
+            ->assertJsonPath('data.client.id', $newClientId);
+
+        $this->postJson('/api/client/login', [
+            'name' => 'Outro Cliente',
+            'phone' => '11777777777',
+            'email' => 'ana@example.com',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
 
         $this->postJson('/api/client/login', [
             'name' => 'Outro Nome',
@@ -1250,11 +1347,37 @@ class ClientApiTest extends TestCase
         ])->assertStatus(409)
             ->assertJsonPath('message', 'O telefone informado já está associado a outro nome.');
 
-        $this->assertDatabaseCount('clients', 1);
+        $legacyClient = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Cliente antigo',
+            'phone' => '11777777777',
+            'email' => null,
+            'password' => null,
+            'active' => true,
+        ]);
+        DB::table('orders')->insert([
+            'tenant_id' => $tenant->id,
+            'client_id' => $legacyClient->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->postJson('/api/client/login', [
+            'name' => 'Cliente antigo',
+            'phone' => '11777777777',
+        ])->assertOk()
+            ->assertJsonPath('data.client.id', $legacyClient->id)
+            ->assertJsonPath('data.client.has_email', false);
+
+        $this->assertDatabaseCount('clients', 2);
+        $this->assertDatabaseHas('orders', [
+            'client_id' => $legacyClient->id,
+        ]);
         $this->assertDatabaseHas('clients', [
+            'id' => $newClientId,
             'name' => 'Ana Cliente',
             'phone' => '11999999999',
-            'email' => null,
+            'email' => 'ana@example.com',
             'password' => null,
             'active' => true,
         ]);

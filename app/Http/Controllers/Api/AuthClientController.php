@@ -7,6 +7,7 @@ use App\Models\Client;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -40,11 +41,25 @@ class AuthClientController extends Controller
             return $this->authenticateExistingClient($client, $data['name']);
         }
 
+        $email = $request->input('email');
+        $email = is_string($email) ? strtolower(trim($email)) : $email;
+        $emailValidator = Validator::make(
+            ['email' => $email],
+            ['email' => ['required', 'string', 'email', 'max:255', 'unique:clients,email']]
+        );
+
+        if ($emailValidator->fails()) {
+            return response()->json([
+                'message' => 'Informe um e-mail válido para criar sua conta.',
+                'errors' => $emailValidator->errors(),
+            ], 422);
+        }
+
         try {
             $client = Client::create([
                 'name' => $data['name'],
                 'phone' => $data['phone'],
-                'email' => null,
+                'email' => $email,
                 'password' => null,
                 'active' => true,
             ]);
@@ -54,6 +69,13 @@ class AuthClientController extends Controller
                 ->first();
 
             if (! $client) {
+                if (DB::table('clients')->where('email', $email)->exists()) {
+                    return response()->json([
+                        'message' => 'Este e-mail já está associado a outra conta.',
+                        'errors' => ['email' => ['Este e-mail já está associado a outra conta.']],
+                    ], 422);
+                }
+
                 throw $exception;
             }
 

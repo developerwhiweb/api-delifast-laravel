@@ -67,7 +67,6 @@ class OrderController extends Controller
             'delivery_method' => ['nullable', 'in:delivery,pickup,local'],
             'address_id' => ['nullable', 'integer'],
             'save_address' => ['nullable', 'boolean'],
-            'customer_email' => ['nullable', 'email', 'max:255'],
 
             'notes' => [
                 'nullable',
@@ -331,7 +330,7 @@ class OrderController extends Controller
                 'client_id' => $client->id,
                 'customer_name' => $client->name,
                 'customer_phone' => $client->phone,
-                'customer_email' => $validated['customer_email'] ?? null,
+                'customer_email' => $client->email,
 
                 'delivery_address' => $deliveryAddress,
                 'delivery_method' => $deliveryMethod,
