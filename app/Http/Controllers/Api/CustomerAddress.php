@@ -46,6 +46,8 @@ class CustomerAddress extends Controller
                 ], 422);
             }
 
+            $data['is_default'] = $data['is_default'] || $client->addresses()->doesntExist();
+
             if ($data['is_default']) {
                 $client->addresses()->update(['is_default' => false]);
             }

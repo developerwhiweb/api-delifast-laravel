@@ -437,7 +437,7 @@ class ClientApiTest extends TestCase
             'neighborhood' => 'Centro',
             'street' => 'Rua A',
             'number' => '10',
-            'is_default' => true,
+            'is_default' => false,
         ];
 
         $firstAddress = $this->withToken($token)
