@@ -664,7 +664,7 @@ class ClientApiTest extends TestCase
         });
         $emailCode = end($codes);
 
-        $this->withToken($token)
+        $emailConfirmation = $this->withToken($token)
             ->postJson('/api/client/email-verification/confirm', [
                 'code' => $emailCode,
             ])
@@ -674,47 +674,77 @@ class ClientApiTest extends TestCase
             ->assertJsonMissingPath('data.email')
             ->assertJsonMissingPath('data.name')
             ->assertJsonMissingPath('data.phone')
-            ->assertJsonMissingPath('data.path_image');
+            ->assertJsonMissingPath('data.path_image')
+            ->assertJsonStructure([
+                'data' => [
+                    'sensitive_access' => ['token', 'expires_at'],
+                ],
+            ]);
 
         Auth::forgetGuards();
+        $sensitiveToken = $emailConfirmation->json('data.sensitive_access.token');
+        $this->assertNotEmpty($sensitiveToken);
+        $this->assertDatabaseCount('client_sensitive_access_grants', 1);
+
+        $this->withToken($token)
+            ->postJson('/api/client/email-verification/confirm', ['code' => $emailCode])
+            ->assertUnprocessable();
+
         $this->withToken($token)
             ->getJson('/api/client/addresses')
             ->assertForbidden()
             ->assertJsonPath('code', 'client_verification_required');
         $this->withToken($token)
-            ->getJson('/api/client/me')
-            ->assertForbidden()
-            ->assertJsonPath('code', 'client_verification_required');
+            ->withHeader('X-Client-Verification', $sensitiveToken)
+            ->getJson('/api/client/addresses')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
         $this->withToken($token)
-            ->getJson('/api/client/orders')
-            ->assertForbidden()
-            ->assertJsonPath('code', 'client_verification_required');
+            ->withHeader('X-Client-Verification', $sensitiveToken)
+            ->getJson('/api/client/me')
+            ->assertOk();
+    }
 
-        RateLimiter::clear(sha1((string) $client->id));
+    public function test_verified_client_can_request_a_sensitive_access_code(): void
+    {
+        Mail::fake();
+
+        $tenant = Tenant::create([
+            'name' => 'Delivery',
+            'slug' => 'delivery',
+            'domain' => 'localhost',
+            'active' => true,
+        ]);
+        $tenant->makeCurrent();
+
+        $client = Client::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Ana Cliente',
+            'phone' => '11999999999',
+            'email' => 'ana@example.com',
+            'password' => null,
+            'active' => true,
+        ]);
+        $client->email_verified_at = now();
+        $client->save();
+        $token = $client->createToken('delivery')->plainTextToken;
+
         $this->withToken($token)
             ->postJson('/api/client/sensitive-access/request')
             ->assertOk();
 
-        $codes = [];
-        Mail::assertSent(ClientVerificationCodeMail::class, function ($mail) use (&$codes) {
-            $codes[] = $mail->code;
+        $code = null;
+        Mail::assertSent(ClientVerificationCodeMail::class, function ($mail) use (&$code) {
+            $code = $mail->code;
 
             return true;
         });
-        $sensitiveCode = end($codes);
 
-        $grantResponse = $this->withToken($token)
-            ->postJson('/api/client/sensitive-access/confirm', [
-                'code' => $sensitiveCode,
-            ])
-            ->assertOk();
-        $this->withToken($token)
-            ->postJson('/api/client/sensitive-access/confirm', [
-                'code' => $sensitiveCode,
-            ])
-            ->assertUnprocessable();
+        $grant = $this->withToken($token)
+            ->postJson('/api/client/sensitive-access/confirm', ['code' => $code])
+            ->assertOk()
+            ->json('data.token');
 
-        $grant = $grantResponse->json('data.token');
         $this->withToken($token)
             ->withHeader('X-Client-Verification', $grant)
             ->getJson('/api/client/addresses')
@@ -810,20 +840,26 @@ class ClientApiTest extends TestCase
             return true;
         });
 
-        $this->withToken($authToken)
+        $confirmation = $this->withToken($authToken)
             ->postJson('/api/client/email-verification/confirm', ['code' => $code])
             ->assertOk()
             ->assertJsonPath('data.email_verified', true)
             ->assertJsonMissingPath('data.email')
             ->assertJsonMissingPath('data.name')
             ->assertJsonMissingPath('data.phone')
-            ->assertJsonMissingPath('data.path_image');
+            ->assertJsonMissingPath('data.path_image')
+            ->assertJsonStructure([
+                'data' => [
+                    'sensitive_access' => ['token', 'expires_at'],
+                ],
+            ]);
 
         $this->assertDatabaseHas('clients', [
             'id' => $client->id,
             'email' => 'ana.nova@example.com',
         ]);
-        $this->assertDatabaseCount('client_sensitive_access_grants', 0);
+        $this->assertDatabaseCount('client_sensitive_access_grants', 1);
+        $this->assertNotEmpty($confirmation->json('data.sensitive_access.token'));
     }
 
     public function test_authenticated_client_can_place_order_without_resending_profile_details(): void

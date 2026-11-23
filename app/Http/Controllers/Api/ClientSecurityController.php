@@ -42,7 +42,7 @@ class ClientSecurityController extends Controller
         );
 
         return response()->json([
-            'message' => 'E-mail confirmado com sucesso.',
+            'message' => 'E-mail confirmado e acesso aos dados protegidos liberado.',
             'data' => $client,
         ]);
     }

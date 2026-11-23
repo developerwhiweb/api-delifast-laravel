@@ -115,7 +115,12 @@ class ClientSecurityService
             $lockedClient->save();
             $lockedClient->sensitiveAccessGrants()->delete();
 
-            return $this->clientSecurityData($lockedClient->fresh());
+            $verifiedClient = $lockedClient->fresh();
+
+            return array_merge(
+                $this->clientSecurityData($verifiedClient),
+                ['sensitive_access' => $this->createSensitiveAccessGrant($verifiedClient)]
+            );
         });
     }
 
@@ -132,6 +137,11 @@ class ClientSecurityService
     {
         $this->consumeCode($client, 'sensitive_access', $code);
 
+        return $this->createSensitiveAccessGrant($client);
+    }
+
+    private function createSensitiveAccessGrant(Client $client): array
+    {
         $plainToken = bin2hex(random_bytes(32));
         $expiresAt = now()->addMinutes(self::GRANT_VALIDITY_MINUTES);
 
