@@ -252,6 +252,7 @@ class ClientApiTest extends TestCase
             'phone' => '11999999999',
             'email' => 'ana@example.com',
             'password' => Hash::make('not-used-by-delivery-api'),
+            'path_image' => 'profiles/ana.jpg',
             'active' => true,
         ]);
         $client->email_verified_at = now();
@@ -277,6 +278,7 @@ class ClientApiTest extends TestCase
             'phone' => '11999999999',
         ])->assertOk()
             ->assertJsonPath('data.client.name', 'Ana Cliente')
+            ->assertJsonPath('data.client.path_image', 'profiles/ana.jpg')
             ->assertJsonPath('data.client.has_saved_address', true);
 
         $login->assertJsonMissingPath('data.client.password');

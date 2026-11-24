@@ -132,6 +132,7 @@ class AuthClientController extends Controller
             'id' => $client->id,
             'name' => $client->name,
             'phone' => $client->phone,
+            'path_image' => $client->path_image,
             'has_email' => (bool) $client->email,
             'email_verified' => (bool) $client->email_verified_at,
             'address_storage_enabled' => (bool) $client->address_storage_enabled,
