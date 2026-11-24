@@ -2,6 +2,8 @@
 
 namespace App\Modules\Admin\Presentation\Controllers;
 
+use App\Models\Order;
+use App\Models\Tenant;
 use App\Modules\Admin\Business\DashboardService;
 use App\Services\ThemeManager;
 use Illuminate\Http\RedirectResponse;
@@ -29,7 +31,14 @@ class DashboardController
     public function administration(): View|RedirectResponse
     {
         $data = $this->service->getDashboardData($this->theme);
+        $tenant = Tenant::current();
+        $orders = Order::query()
+            ->where('tenant_id', $tenant?->id ?? 0)
+            ->with('items')
+            ->latest('placed_at')
+            ->paginate(50)
+            ->withQueryString();
 
-        return view('admin.administration', $data);
+        return view('admin.administration', array_merge($data, compact('orders')));
     }
 }

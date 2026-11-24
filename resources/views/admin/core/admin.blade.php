@@ -883,9 +883,9 @@
         <script src="{{ asset('build/admin/js/pages/form-fileuploads.init.js') }}"></script>
         <script src="{{ asset('build/admin/js/main.js') }}"></script>
 
-
         <!-- Dashboard 2 init -->
-        <script src="{{ asset('build/admin/js/pages/dashboard-2.init.js') }}"></script>       
+        <script src="{{ asset('build/admin/js/pages/dashboard-2.init.js') }}"></script>  
+        <script src="{{ asset('build/admin/js/pages/kanban.init.js') }}"></script>    
 
         {{-- Modais alert --}}
         @if (session('success'))
@@ -1129,7 +1129,6 @@
                 });
             </script>
         @endif
-
 
         @if ($errors->any())
             <div
