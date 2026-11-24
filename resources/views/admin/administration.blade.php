@@ -8,7 +8,7 @@
             'preparing' => ['label' => 'Em preparação', 'color' => 'primary'],
             'ready' => ['label' => 'Prontos para retirada/entrega', 'color' => 'success'],
             'out_for_delivery' => ['label' => 'Em rota de entrega', 'color' => 'purple'],
-            'delivered' => ['label' => 'Finalizados', 'color' => 'success'],
+            'delivered' => ['label' => 'Finalizados', 'color' => 'dark'],
             'canceled' => ['label' => 'Cancelados', 'color' => 'danger'],
         ];
         $paymentStatuses = [
@@ -16,6 +16,12 @@
             'paid' => 'Pago',
             'failed' => 'Recusado',
             'refunded' => 'Reembolsado',
+        ];
+        $paymentColors = [
+            'pending' => 'warning',
+            'paid' => 'success',
+            'failed' => 'danger',
+            'refunded' => 'secondary',
         ];
         $deliveryMethods = [
             'delivery' => 'Entrega',
@@ -64,12 +70,48 @@
             padding: .75rem;
         }
 
+        .orders-column[data-status="pending"] {
+            --stage-color: #f0ad4e;
+            --stage-bg: #fff8e6;
+        }
+
+        .orders-column[data-status="confirmed"] {
+            --stage-color: #17a2b8;
+            --stage-bg: #e8f8fb;
+        }
+
+        .orders-column[data-status="preparing"] {
+            --stage-color: #536de6;
+            --stage-bg: #eef0ff;
+        }
+
+        .orders-column[data-status="ready"] {
+            --stage-color: #22a06b;
+            --stage-bg: #e9f8f0;
+        }
+
+        .orders-column[data-status="out_for_delivery"] {
+            --stage-color: #8a63d2;
+            --stage-bg: #f2edfc;
+        }
+
+        .orders-column[data-status="delivered"] {
+            --stage-color: #495057;
+            --stage-bg: #eceff1;
+        }
+
+        .orders-column[data-status="canceled"] {
+            --stage-color: #dc3545;
+            --stage-bg: #fff0f1;
+        }
+
         .orders-column-heading {
             position: sticky;
             top: -.75rem;
             z-index: 1;
-            background: var(--bs-tertiary-bg, #f3f5f7);
-            padding: .25rem 0 .75rem;
+            background: var(--stage-bg, #f3f5f7);
+            border-top: 3px solid var(--stage-color, #6c757d);
+            padding: .5rem .25rem .75rem;
         }
 
         .order-card {
@@ -86,6 +128,11 @@
             overflow: hidden;
         }
 
+        .order-item-details {
+            white-space: pre-wrap;
+            font-size: .75rem;
+        }
+
         .bg-soft-purple {
             color: #6f42c1;
             background: rgba(111, 66, 193, .12);
@@ -93,6 +140,11 @@
 
         .text-purple {
             color: #6f42c1 !important;
+        }
+
+        .bg-soft-dark {
+            color: #495057;
+            background: rgba(73, 80, 87, .12);
         }
 
         @media (max-width: 575.98px) {
@@ -111,6 +163,16 @@
 
     <div class="card">
         <div class="card-body">
+            @if (session('success'))
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+            @endif
+            @if ($errors->has('status'))
+                <div class="alert alert-danger" role="alert">{{ $errors->first('status') }}</div>
+            @endif
+
             @if ($orders->isEmpty())
                 <div class="text-center py-5">
                     <i class="mdi mdi-receipt-text-outline display-4 text-muted"></i>
@@ -124,66 +186,81 @@
                             @php
                                 $stageOrders = $orders->getCollection()->where('status', $status);
                             @endphp
-                            <div class="orders-column">
+                            <div class="orders-column" data-status="{{ $status }}">
                                 <div class="orders-column-heading d-flex justify-content-between align-items-center">
                                     <h5 class="mb-0">{{ $stage['label'] }}</h5>
-                                    <span class="badge bg-light text-dark">{{ $stageOrders->count() }}</span>
+                                    <span class="badge bg-white text-dark">{{ $stageOrders->count() }}</span>
                                 </div>
 
                                 @forelse ($stageOrders as $order)
                                     @php
-                                        $address = collect($order->delivery_address ?? [])
-                                            ->only(['street', 'number', 'neighborhood', 'city'])
-                                            ->filter()
-                                            ->implode(', ');
-                                        $paymentStatus = $paymentStatuses[$order->payment_status] ?? ucfirst($order->payment_status);
                                         $deliveryMethod = $deliveryMethods[$order->delivery_method] ?? ucfirst($order->delivery_method ?? 'Não informado');
+                                        $paymentStatus = $paymentStatuses[$order->payment_status] ?? ucfirst($order->payment_status);
+                                        $paymentColor = $paymentColors[$order->payment_status] ?? 'secondary';
+                                        $actions = match ($order->status) {
+                                            'pending' => [
+                                                ['status' => 'canceled', 'label' => 'Recusar', 'class' => 'btn-outline-danger'],
+                                                ['status' => 'confirmed', 'label' => 'Aceitar', 'class' => 'btn-success'],
+                                            ],
+                                            'confirmed' => [
+                                                ['status' => 'preparing', 'label' => 'Começar a preparar', 'class' => 'btn-primary'],
+                                            ],
+                                            'preparing' => [
+                                                ['status' => 'ready', 'label' => 'Marcar como pronto', 'class' => 'btn-success'],
+                                            ],
+                                            'ready' => $order->delivery_method === 'delivery'
+                                                ? [['status' => 'out_for_delivery', 'label' => 'Saiu para entrega', 'class' => 'btn-primary']]
+                                                : [['status' => 'delivered', 'label' => 'Concluir retirada', 'class' => 'btn-success']],
+                                            'out_for_delivery' => [
+                                                ['status' => 'delivered', 'label' => 'Marcar como entregue', 'class' => 'btn-success'],
+                                            ],
+                                            default => [],
+                                        };
                                     @endphp
                                     <article class="card order-card shadow-sm">
                                         <div class="card-body">
-                                            <div class="d-flex justify-content-start flex-column align-items-start gap-2">
-                                                <span class="badge bg-soft-{{ $stage['color'] }} text-{{ $stage['color'] }}">
-                                                    {{ $stage['label'] }}
+                                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                                <h5 class="card-title mb-0">#{{ $order->number }}</h5>
+                                                <span class="badge bg-soft-{{ $paymentColor }} text-{{ $paymentColor }}">
+                                                    {{ $paymentStatus }}
                                                 </span>
-                                                <h5 class="card-title mb-1">#{{ $order->number }}</h5>
                                             </div>
-                                            <p class="text-muted font-13 mb-2">
+                                            <p class="text-muted font-13 mt-1 mb-2">
                                                 {{ $order->placed_at?->format('d/m/Y H:i') ?? $order->created_at?->format('d/m/Y H:i') }}
                                             </p>
 
-                                            <div class="mb-2">
-                                                <div class="fw-semibold">{{ $order->customer_name }}</div>
-                                                @if ($order->customer_phone)
-                                                    <a href="tel:{{ $order->customer_phone }}" class="text-muted font-13">
-                                                        {{ $order->customer_phone }}
-                                                    </a>
-                                                @endif
-                                            </div>
-
-                                            <ul class="list-unstyled order-items-summary font-13 mb-2">
-                                                @forelse ($order->items as $item)
-                                                    <li>{{ $item->quantity }}x {{ $item->product_title }}</li>
-                                                @empty
-                                                    <li class="text-muted">Itens não informados</li>
-                                                @endforelse
-                                            </ul>
-
-                                            <div class="d-flex justify-content-between align-items-center border-top pt-2">
-                                                <span class="text-muted">{{ $deliveryMethod }}</span>
+                                            <div class="fw-semibold">{{ $order->customer_name }}</div>
+                                            @if ($order->customer_phone)
+                                                <a href="tel:{{ $order->customer_phone }}" class="text-muted font-13">
+                                                    {{ $order->customer_phone }}
+                                                </a>
+                                            @endif
+                                            <div class="d-flex justify-content-between align-items-center border-top mt-2 pt-2">
+                                                <span class="text-muted font-13">{{ $deliveryMethod }}</span>
                                                 <strong>R$ {{ number_format((float) $order->total, 2, ',', '.') }}</strong>
                                             </div>
-                                            <div class="d-flex justify-content-between align-items-center mt-1 font-13">
-                                                <span class="text-muted">Pagamento: {{ $paymentStatuses[$order->payment_status] ?? ucfirst($order->payment_status) }}</span>
-                                                <span class="text-muted">{{ $order->payment_method ?: 'Não informado' }}</span>
+
+                                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                                                <button type="button" class="btn btn-sm btn-light col-12" data-bs-toggle="modal" data-bs-target="#order-details-{{ $order->id }}">
+                                                    <i class="mdi mdi-eye-outline me-1"></i> Ver detalhes
+                                                </button>
+                                                @foreach ($actions as $action)
+                                                    <form method="POST" action="{{ route('admin.dashboard.administration.orders.status', $order->id) }}">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <input type="hidden" name="status" value="{{ $action['status'] }}">
+                                                        <button
+                                                            type="submit"
+                                                            class="btn btn-sm {{ $action['class'] }}"
+                                                            @if ($action['status'] === 'canceled')
+                                                                onclick="return confirm('Deseja recusar este pedido?')"
+                                                            @endif
+                                                        >
+                                                            {{ $action['label'] }}
+                                                        </button>
+                                                    </form>
+                                                @endforeach
                                             </div>
-                                            @if ($address)
-                                                <p class="text-muted font-13 mt-2 mb-0">
-                                                    <i class="mdi mdi-map-marker-outline"></i> {{ $address }}
-                                                </p>
-                                            @endif
-                                            @if ($order->notes)
-                                                <p class="font-13 mt-2 mb-0"><strong>Observação:</strong> {{ $order->notes }}</p>
-                                            @endif
                                         </div>
                                     </article>
                                 @empty
@@ -255,6 +332,99 @@
                         </table>
                     </div>
                 </section>
+
+                @foreach ($orders as $order)
+                    @php
+                        $address = collect($order->delivery_address ?? [])
+                            ->only(['recipient_name', 'street', 'number', 'complement', 'neighborhood', 'city', 'state', 'zip_code', 'reference'])
+                            ->filter()
+                            ->implode(', ');
+                        $deliveryMethod = $deliveryMethods[$order->delivery_method] ?? ucfirst($order->delivery_method ?? 'Não informado');
+                        $paymentStatus = $paymentStatuses[$order->payment_status] ?? ucfirst($order->payment_status);
+                    @endphp
+                    <div class="modal fade" id="order-details-{{ $order->id }}" tabindex="-1" aria-labelledby="order-details-title-{{ $order->id }}" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <div>
+                                        <h5 class="modal-title" id="order-details-title-{{ $order->id }}">Pedido #{{ $order->number }}</h5>
+                                        <small class="text-muted">{{ $order->placed_at?->format('d/m/Y H:i') ?? $order->created_at?->format('d/m/Y H:i') }}</small>
+                                    </div>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <h6>Cliente</h6>
+                                            <div>{{ $order->customer_name }}</div>
+                                            @if ($order->customer_phone)
+                                                <div><a href="tel:{{ $order->customer_phone }}">{{ $order->customer_phone }}</a></div>
+                                            @endif
+                                            @if ($order->customer_email)
+                                                <div><a href="mailto:{{ $order->customer_email }}">{{ $order->customer_email }}</a></div>
+                                            @endif
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6>Entrega e pagamento</h6>
+                                            <div>{{ $deliveryMethod }}</div>
+                                            @if ($address)
+                                                <div class="text-muted">{{ $address }}</div>
+                                            @endif
+                                            <div class="mt-1">{{ $paymentStatus }} · {{ $order->payment_method ?: 'Forma de pagamento não informada' }}</div>
+                                        </div>
+                                    </div>
+
+                                    <h6>Itens do pedido</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle">
+                                            <thead>
+                                                <tr>
+                                                    <th>Item</th>
+                                                    <th class="text-center">Qtd.</th>
+                                                    <th class="text-end">Unitário</th>
+                                                    <th class="text-end">Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse ($order->items as $item)
+                                                    <tr>
+                                                        <td>
+                                                            <div>{{ $item->product_title }}</div>
+                                                            @if ($item->details)
+                                                                <pre class="order-item-details text-muted mb-0">{{ json_encode($item->details, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                                            @endif
+                                                        </td>
+                                                        <td class="text-center">{{ $item->quantity }}</td>
+                                                        <td class="text-end">R$ {{ number_format((float) $item->unit_price, 2, ',', '.') }}</td>
+                                                        <td class="text-end">R$ {{ number_format((float) $item->total_price, 2, ',', '.') }}</td>
+                                                    </tr>
+                                                @empty
+                                                    <tr><td colspan="4" class="text-muted text-center">Itens não informados.</td></tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    @if ($order->notes)
+                                        <div class="alert alert-light mb-3">
+                                            <strong>Observações do cliente:</strong><br>
+                                            {{ $order->notes }}
+                                        </div>
+                                    @endif
+
+                                    <div class="ms-auto" style="max-width: 320px;">
+                                        <div class="d-flex justify-content-between"><span>Subtotal</span><span>R$ {{ number_format((float) $order->subtotal, 2, ',', '.') }}</span></div>
+                                        <div class="d-flex justify-content-between"><span>Taxa de entrega</span><span>R$ {{ number_format((float) $order->delivery_fee, 2, ',', '.') }}</span></div>
+                                        @if ((float) $order->discount > 0)
+                                            <div class="d-flex justify-content-between"><span>Desconto</span><span>- R$ {{ number_format((float) $order->discount, 2, ',', '.') }}</span></div>
+                                        @endif
+                                        <div class="d-flex justify-content-between border-top mt-2 pt-2 fw-bold"><span>Total</span><span>R$ {{ number_format((float) $order->total, 2, ',', '.') }}</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
 
                 <div class="mt-3">
                     {{ $orders->links('pagination::bootstrap-5') }}
