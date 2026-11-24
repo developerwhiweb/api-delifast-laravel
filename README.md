@@ -23,9 +23,11 @@ Laravel is accessible, powerful, and provides tools required for large, robust a
 
 ## Realtime de pedidos do painel
 
-O painel administrativo recebe eventos de pedidos pelo Laravel Reverb e Laravel Echo. Os eventos são enviados somente ao canal privado `tenants.{tenantId}.orders`; a autorização confere se o usuário autenticado pertence ao tenant do canal. Novos pedidos e mudanças de status são transmitidos após o commit. A tela sincroniza um fragmento HTML autoritativo ao reconectar e reconcilia os dados a cada 5 minutos com o WebSocket ativo ou a cada 60 segundos enquanto estiver indisponível.
+O painel administrativo recebe eventos de pedidos pelo Laravel Reverb e Laravel Echo. Os eventos são enviados somente ao canal privado `tenants.{tenantId}.orders`; usuários comuns só podem assinar o canal do próprio tenant, enquanto o papel `Super` pode assinar canais de qualquer tenant. Novos pedidos e mudanças de status são transmitidos após o commit. A tela sincroniza um fragmento HTML autoritativo ao reconectar e reconcilia os dados a cada 5 minutos com o WebSocket ativo ou a cada 60 segundos enquanto estiver indisponível.
 
 Configure no `.env` os valores de `BROADCAST_CONNECTION=reverb`, `QUEUE_CONNECTION=database` e as variáveis `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME`, `REVERB_SERVER_HOST`, `REVERB_SERVER_PORT` e `VITE_REVERB_*`. Use credenciais fortes e iguais às cadastradas no Reverb. Em produção com proxy TLS, configure `VITE_REVERB_HOST` e `VITE_REVERB_SCHEME=https` para o endereço público de WebSocket; o host interno do backend pode continuar apontando para `127.0.0.1`.
+
+Para desenvolvimento acessado por outro dispositivo na rede local, defina `APP_URL` como a origem do Laravel (por exemplo, `http://<IP-do-servidor>:8000`), e use o IP do servidor em `VITE_DEV_SERVER_HOST` e `VITE_REVERB_HOST`. Inicie o Laravel com `php artisan serve --host=0.0.0.0 --port=8000`; mantenha o Reverb ouvindo em `0.0.0.0` e permita os ports do Laravel, Vite e Reverb no firewall local.
 
 Depois de preencher o `.env`, compile os assets e mantenha os dois processos persistentes em execução:
 

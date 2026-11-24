@@ -29,15 +29,21 @@ class OrderRealtimeChangedTest extends TestCase
         ], $event->broadcastWith());
     }
 
-    public function test_channel_authorization_rejects_users_from_other_tenants(): void
+    public function test_channel_authorization_is_tenant_scoped_except_for_super_users(): void
     {
         $channels = Broadcast::getChannels();
         $authorize = $channels->get('tenants.{tenantId}.orders');
-        $user = new User;
+        $user = \Mockery::mock(User::class)->makePartial();
         $user->setAttribute('tenant_id', 17);
+        $user->shouldReceive('hasRole')->with('Super')->andReturn(false);
 
         $this->assertIsCallable($authorize);
         $this->assertTrue($authorize($user, 17));
         $this->assertFalse($authorize($user, 18));
+
+        $superUser = \Mockery::mock(User::class)->makePartial();
+        $superUser->shouldReceive('hasRole')->with('Super')->andReturn(true);
+
+        $this->assertTrue($authorize($superUser, 18));
     }
 }
