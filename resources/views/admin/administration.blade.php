@@ -53,16 +53,32 @@
     </div>
 
     <style>
+        .content-page,
+        .content-page > .content,
+        .content-page > .content > .container-fluid,
+        .content-page .card,
+        .content-page .card-body,
+        #orders-kanban {
+            min-width: 0;
+            max-width: 100%;
+        }
+
         .orders-board {
             display: flex;
             gap: 1rem;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
+            box-sizing: border-box;
             overflow-x: auto;
             padding: .25rem .25rem 1rem;
             align-items: flex-start;
+            overscroll-behavior-x: contain;
         }
 
         .orders-column {
-            flex: 0 0 300px;
+            flex: 0 0 min(300px, 100%);
+            min-width: 0;
             max-height: calc(100vh - 230px);
             overflow-y: auto;
             background: var(--bs-tertiary-bg, #f3f5f7);
@@ -155,7 +171,6 @@
             }
 
             .orders-column {
-                flex-basis: min(86vw, 300px);
                 max-height: 70vh;
             }
         }
@@ -219,11 +234,11 @@
                                     @endphp
                                     <article class="card order-card shadow-sm">
                                         <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-start gap-2">
-                                                <h5 class="card-title mb-0">#{{ $order->number }}</h5>
+                                            <div class="d-flex flex-column justify-content-start align-items-start gap-2">
                                                 <span class="badge bg-soft-{{ $paymentColor }} text-{{ $paymentColor }}">
                                                     {{ $paymentStatus }}
                                                 </span>
+                                                <h5 class="card-title mb-0">#{{ $order->number }}</h5>
                                             </div>
                                             <p class="text-muted font-13 mt-1 mb-2">
                                                 {{ $order->placed_at?->format('d/m/Y H:i') ?? $order->created_at?->format('d/m/Y H:i') }}
