@@ -257,12 +257,27 @@ class ClientApiTest extends TestCase
         $client->email_verified_at = now();
         $client->save();
         $sensitiveAccessToken = $this->createSensitiveAccessGrant($client);
+        DB::table('customer_addresses')->insert([
+            'client_id' => $client->id,
+            'title' => 'Casa',
+            'recipient_name' => 'Ana Cliente',
+            'zip_code' => '01000-000',
+            'state' => 'SP',
+            'city' => 'São Paulo',
+            'neighborhood' => 'Centro',
+            'street' => 'Rua A',
+            'number' => '10',
+            'is_default' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $login = $this->postJson('/api/client/login', [
             'name' => 'Ana Cliente',
             'phone' => '11999999999',
         ])->assertOk()
-            ->assertJsonPath('data.client.name', 'Ana Cliente');
+            ->assertJsonPath('data.client.name', 'Ana Cliente')
+            ->assertJsonPath('data.client.has_saved_address', true);
 
         $login->assertJsonMissingPath('data.client.password');
         $token = $login->json('data.token');

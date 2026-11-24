@@ -135,6 +135,7 @@ class AuthClientController extends Controller
             'has_email' => (bool) $client->email,
             'email_verified' => (bool) $client->email_verified_at,
             'address_storage_enabled' => (bool) $client->address_storage_enabled,
+            'has_saved_address' => $client->addresses()->exists(),
             'can_bind_email' => ! $client->email
                 && ! $client->orders()->exists()
                 && ! $client->addresses()->exists(),
