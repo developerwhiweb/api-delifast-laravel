@@ -45,7 +45,7 @@ if (controls) {
     function showFeedback(message, type = 'success') {
         window.clearTimeout(feedbackTimer);
         feedback.textContent = message;
-        feedback.className = `alert alert-${type} alert-dismissible fade show`;
+        feedback.className = `alert alert-${type} alert-dismissible fade show${type === 'warning' ? ' orders-new-order-alert' : ''}`;
 
         const closeButton = document.createElement('button');
         closeButton.type = 'button';
@@ -58,7 +58,7 @@ if (controls) {
 
         feedbackTimer = window.setTimeout(() => {
             feedback.className = 'd-none';
-        }, type === 'danger' ? 10000 : 4500);
+        }, type === 'danger' ? 10000 : type === 'warning' ? 12000 : 4500);
     }
 
     function updatePollingInterval() {
@@ -205,9 +205,9 @@ if (controls) {
         const start = audioContext.currentTime + startAt;
 
         oscillator.frequency.value = frequency;
-        oscillator.type = 'sine';
+        oscillator.type = 'triangle';
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.15, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.4, start + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
         oscillator.connect(gain);
         gain.connect(audioContext.destination);
@@ -220,8 +220,12 @@ if (controls) {
             return;
         }
 
-        playTone(880, 0, 0.18);
-        playTone(1174, 0.22, 0.22);
+        const notes = [880, 1175, 1568];
+        [0, 0.85].forEach((patternStart) => {
+            notes.forEach((frequency, index) => {
+                playTone(frequency, patternStart + index * 0.21, 0.18);
+            });
+        });
     }
 
     function isNewOrderEvent(event) {
@@ -261,6 +265,7 @@ if (controls) {
 
         if (isNewOrderEvent(event) && !knownOrderIds.has(orderId)) {
             knownOrderIds.add(orderId);
+            showFeedback('Novo pedido recebido! Confira a coluna "Novos pedidos".', 'warning');
             playNewOrderAlert();
         }
 
@@ -446,7 +451,7 @@ if (controls) {
             await audioContext.resume();
             soundEnabled = true;
             setSoundButton();
-            playTone(880, 0, 0.1);
+            playNewOrderAlert();
         } catch (error) {
             console.error('Não foi possível ativar as notificações sonoras.', error);
             showFeedback('Não foi possível ativar o som neste navegador.', 'danger');

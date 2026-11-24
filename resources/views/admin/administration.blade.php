@@ -53,6 +53,24 @@
             flex: 1 1 auto;
         }
 
+        .orders-new-order-alert {
+            border-width: 2px;
+            font-weight: 600;
+            animation: orders-new-order-pulse 1.1s ease-in-out 4;
+        }
+
+        @keyframes orders-new-order-pulse {
+            50% {
+                box-shadow: 0 0 0 .35rem rgba(240, 173, 78, .3);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .orders-new-order-alert {
+                animation: none;
+            }
+        }
+
         .orders-connection {
             display: inline-flex;
             align-items: center;
