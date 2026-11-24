@@ -2,11 +2,14 @@
 
 namespace App\Modules\Admin\Presentation\Controllers;
 
+use App\Events\OrderRealtimeChanged;
 use App\Models\Order;
 use App\Models\Tenant;
 use App\Modules\Admin\Business\DashboardService;
 use App\Services\ThemeManager;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -34,18 +37,29 @@ class DashboardController
     public function administration(): View|RedirectResponse
     {
         $data = $this->service->getDashboardData($this->theme);
-        $tenant = Tenant::current();
-        $orders = Order::query()
-            ->where('tenant_id', $tenant?->id ?? 0)
-            ->with('items')
-            ->latest('placed_at')
-            ->paginate(50)
-            ->withQueryString();
+        $tenantId = Tenant::current()?->id;
+        $orders = $this->ordersForTenant($tenantId);
 
-        return view('admin.administration', array_merge($data, compact('orders')));
+        return view('admin.administration', array_merge($data, [
+            'orders' => $orders,
+            'tenantId' => $tenantId,
+            'ordersSnapshotUrl' => route('admin.dashboard.administration.orders.snapshot'),
+        ]));
     }
 
-    public function updateOrderStatus(Request $request, int $id): RedirectResponse
+    public function administrationSnapshot(Request $request): JsonResponse
+    {
+        $tenantId = Tenant::current()?->id;
+        $orders = $this->ordersForTenant($tenantId);
+        $html = view('admin.partials.administration-orders-content', compact('orders'))->render();
+
+        return response()->json([
+            'html' => $html,
+            'synced_at' => now()->toISOString(),
+        ]);
+    }
+
+    public function updateOrderStatus(Request $request, int $id): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'status' => ['required', 'in:confirmed,preparing,ready,out_for_delivery,delivered,canceled'],
@@ -59,6 +73,10 @@ class DashboardController
                 ->where('tenant_id', $tenantId)
                 ->lockForUpdate()
                 ->findOrFail($id);
+
+            if ($order->status === $validated['status']) {
+                return $order;
+            }
 
             $allowedTransitions = [
                 'pending' => ['confirmed', 'canceled'],
@@ -79,6 +97,16 @@ class DashboardController
             return $order;
         });
 
+        if ($order->wasChanged('status')) {
+            OrderRealtimeChanged::dispatch(
+                (int) $tenantId,
+                (int) $order->id,
+                $order->status,
+                'status',
+                $order->updated_at?->toISOString()
+            );
+        }
+
         $messages = [
             'confirmed' => 'Pedido aceito.',
             'preparing' => 'Preparação iniciada.',
@@ -88,6 +116,26 @@ class DashboardController
             'canceled' => 'Pedido recusado.',
         ];
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $messages[$order->status],
+                'order_id' => $order->id,
+                'status' => $order->status,
+                'updated_at' => $order->updated_at?->toISOString(),
+            ]);
+        }
+
         return back()->with('success', $messages[$order->status]);
+    }
+
+    private function ordersForTenant(?int $tenantId): LengthAwarePaginator
+    {
+        return Order::query()
+            ->where('tenant_id', $tenantId ?? 0)
+            ->with('items')
+            ->latest('placed_at')
+            ->paginate(50)
+            ->withQueryString();
     }
 }

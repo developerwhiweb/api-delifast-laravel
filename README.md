@@ -21,6 +21,22 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Realtime de pedidos do painel
+
+O painel administrativo recebe eventos de pedidos pelo Laravel Reverb e Laravel Echo. Os eventos são enviados somente ao canal privado `tenants.{tenantId}.orders`; a autorização confere se o usuário autenticado pertence ao tenant do canal. Novos pedidos e mudanças de status são transmitidos após o commit. A tela sincroniza um fragmento HTML autoritativo ao reconectar e reconcilia os dados a cada 5 minutos com o WebSocket ativo ou a cada 60 segundos enquanto estiver indisponível.
+
+Configure no `.env` os valores de `BROADCAST_CONNECTION=reverb`, `QUEUE_CONNECTION=database` e as variáveis `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME`, `REVERB_SERVER_HOST`, `REVERB_SERVER_PORT` e `VITE_REVERB_*`. Use credenciais fortes e iguais às cadastradas no Reverb. Em produção com proxy TLS, configure `VITE_REVERB_HOST` e `VITE_REVERB_SCHEME=https` para o endereço público de WebSocket; o host interno do backend pode continuar apontando para `127.0.0.1`.
+
+Depois de preencher o `.env`, compile os assets e mantenha os dois processos persistentes em execução:
+
+```sh
+npm run build
+php artisan reverb:start --host=0.0.0.0 --port=8080
+php artisan queue:work --tries=3 --timeout=90
+```
+
+Em produção, mantenha Reverb e o worker sob um gerenciador de processos (por exemplo, Supervisor ou systemd), libere/encaminhe o tráfego WebSocket no proxy e reinicie o worker após deploys. A fila deve estar operacional para que eventos `ShouldBroadcast` sejam enviados; a tela permanece utilizável por sincronização periódica quando o Reverb estiver indisponível.
+
 ## Delivery client API
 
 The delivery client API is tenant-scoped by the request domain and always returns JSON. `POST /api/client/login` accepts `name` and `phone` for both registration and login:

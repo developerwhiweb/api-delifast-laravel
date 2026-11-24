@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Events\OrderRealtimeChanged;
 use App\Models\Client;
 use App\Models\Contact;
 use App\Models\CouponUsage;
@@ -368,6 +369,14 @@ class OrderController extends Controller
             return $order;
         });
 
+        OrderRealtimeChanged::dispatch(
+            (int) $tenant->id,
+            (int) $order->id,
+            $order->status,
+            'created',
+            $order->updated_at?->toISOString()
+        );
+
         return response()->json([
             'message' => 'Pedido realizado com sucesso!',
             'data' => $order->load('items'),
@@ -568,6 +577,16 @@ class OrderController extends Controller
         $order->update([
             'status' => $validated['status'],
         ]);
+
+        if ($order->wasChanged('status')) {
+            OrderRealtimeChanged::dispatch(
+                (int) $tenant->id,
+                (int) $order->id,
+                $order->status,
+                'status',
+                $order->updated_at?->toISOString()
+            );
+        }
 
         return response()->json([
             'message' => 'Status do pedido atualizado com sucesso!',
