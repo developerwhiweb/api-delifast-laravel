@@ -390,8 +390,66 @@
                                                     <tr>
                                                         <td>
                                                             <div>{{ $item->product_title }}</div>
-                                                            @if ($item->details)
-                                                                <pre class="order-item-details text-muted mb-0">{{ json_encode($item->details, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                                            @php
+                                                                $itemDetails = collect($item->details ?? []);
+                                                                $options = collect($itemDetails->get('options', $itemDetails->get('selected_options', [])));
+                                                                $additionals = collect($itemDetails->get('aditionals', $itemDetails->get('additionals', [])));
+                                                            @endphp
+                                                            @if ($options->isNotEmpty() || $additionals->isNotEmpty())
+                                                                <div class="mt-2">
+                                                                    @if ($options->isNotEmpty())
+                                                                        <div class="small text-muted mb-1">Personalizações</div>
+                                                                        <div class="d-flex flex-wrap gap-1 mb-2">
+                                                                            @foreach ($options as $optionKey => $option)
+                                                                                @php
+                                                                                    $optionName = is_array($option)
+                                                                                        ? ($option['optionName'] ?? $option['option_name'] ?? $option['title'] ?? (is_string($optionKey) ? $optionKey : 'Opção'))
+                                                                                        : (is_string($optionKey) ? $optionKey : 'Opção');
+                                                                                    $choiceName = is_array($option)
+                                                                                        ? ($option['choiceName'] ?? $option['choice_name'] ?? $option['choice'] ?? $option['value'] ?? $option['selected'] ?? $option['name'] ?? null)
+                                                                                        : $option;
+                                                                                    if (is_array($choiceName)) {
+                                                                                        $choiceName = $choiceName['name'] ?? $choiceName['title'] ?? $choiceName['value'] ?? null;
+                                                                                    }
+                                                                                @endphp
+                                                                                @if (is_scalar($choiceName) && (string) $choiceName !== '')
+                                                                                    <span class="badge bg-light text-dark">
+                                                                                        {{ $optionName }}: {{ $choiceName }}
+                                                                                    </span>
+                                                                                @endif
+                                                                            @endforeach
+                                                                        </div>
+                                                                    @endif
+                                                                    @if ($additionals->isNotEmpty())
+                                                                        <div class="small text-muted mb-1">Adicionais</div>
+                                                                        <ul class="list-unstyled small mb-0">
+                                                                            @foreach ($additionals as $additional)
+                                                                                @php
+                                                                                    $additionalName = is_array($additional)
+                                                                                        ? ($additional['name'] ?? $additional['title'] ?? 'Adicional')
+                                                                                        : $additional;
+                                                                                    $additionalQuantity = is_array($additional)
+                                                                                        ? ($additional['quantity'] ?? 1)
+                                                                                        : 1;
+                                                                                    $additionalPrice = is_array($additional)
+                                                                                        ? ($additional['price'] ?? null)
+                                                                                        : null;
+                                                                                @endphp
+                                                                                @if (is_scalar($additionalName))
+                                                                                    <li>
+                                                                                        {{ $additionalName }}
+                                                                                        @if ((int) $additionalQuantity > 1)
+                                                                                            <span class="text-muted">× {{ $additionalQuantity }}</span>
+                                                                                        @endif
+                                                                                        @if (is_numeric($additionalPrice) && (float) $additionalPrice > 0)
+                                                                                            <span class="text-muted">(+ R$ {{ number_format((float) $additionalPrice, 2, ',', '.') }})</span>
+                                                                                        @endif
+                                                                                    </li>
+                                                                                @endif
+                                                                            @endforeach
+                                                                        </ul>
+                                                                    @endif
+                                                                </div>
                                                             @endif
                                                         </td>
                                                         <td class="text-center">{{ $item->quantity }}</td>
