@@ -126,6 +126,7 @@ class ClientController extends Controller
             'name' => $client->name,
             'phone' => $client->phone,
             'email' => $client->email,
+            'masked_email' => $client->masked_email,
             'has_email' => (bool) $client->email,
             'email_verified' => (bool) $client->email_verified_at,
             'address_storage_enabled' => (bool) $client->address_storage_enabled,

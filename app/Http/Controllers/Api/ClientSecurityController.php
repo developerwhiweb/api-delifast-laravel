@@ -12,6 +12,17 @@ class ClientSecurityController extends Controller
 {
     public function __construct(private ClientSecurityService $security) {}
 
+    public function emailVerificationDestination(Request $request): JsonResponse
+    {
+        $client = $this->client($request);
+
+        return response()->json([
+            'data' => [
+                'masked_email' => $client->masked_email,
+            ],
+        ]);
+    }
+
     public function requestEmailVerification(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -53,6 +64,9 @@ class ClientSecurityController extends Controller
 
         return response()->json([
             'message' => 'Código enviado para o e-mail confirmado da conta.',
+            'data' => [
+                'masked_email' => $this->client($request)->masked_email,
+            ],
             'expires_in' => 300,
         ]);
     }

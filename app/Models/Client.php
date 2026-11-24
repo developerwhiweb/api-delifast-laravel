@@ -40,6 +40,23 @@ class Client extends Authenticatable
         ];
     }
 
+    public function getMaskedEmailAttribute(): ?string
+    {
+        if (! $this->email) {
+            return null;
+        }
+
+        [$localPart, $domain] = explode('@', $this->email, 2);
+        $domainParts = explode('.', $domain);
+        $visibleLocalPart = substr($localPart, 0, min(2, strlen($localPart)));
+        $maskedLocalPart = $visibleLocalPart.str_repeat('*', max(2, strlen($localPart) - strlen($visibleLocalPart)));
+        $maskedDomain = substr($domainParts[0], 0, 1)
+            .str_repeat('*', max(2, strlen($domainParts[0]) - 1));
+
+        return $maskedLocalPart.'@'.$maskedDomain
+            .(count($domainParts) > 1 ? '.'.implode('.', array_slice($domainParts, 1)) : '');
+    }
+
     protected static $recordEvents = ['created', 'updated', 'deleted'];
 
     public function scopeActive($query)

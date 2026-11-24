@@ -751,8 +751,16 @@ class ClientApiTest extends TestCase
         $token = $client->createToken('delivery')->plainTextToken;
 
         $this->withToken($token)
+            ->getJson('/api/client/email-verification/destination')
+            ->assertOk()
+            ->assertJsonPath('data.masked_email', 'an**@e******.com')
+            ->assertDontSee('ana@example.com');
+
+        $this->withToken($token)
             ->postJson('/api/client/sensitive-access/request')
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('data.masked_email', 'an**@e******.com')
+            ->assertDontSee('ana@example.com');
 
         $code = null;
         Mail::assertSent(ClientVerificationCodeMail::class, function ($mail) use (&$code) {
@@ -1388,7 +1396,9 @@ class ClientApiTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('message', 'Conta criada e login realizado com sucesso.')
             ->assertJsonPath('data.client.has_email', true)
+            ->assertJsonPath('data.client.masked_email', 'an**@e******.com')
             ->assertJsonPath('data.client.email_verified', false)
+            ->assertDontSee('ana@example.com')
             ->json('data.client.id');
 
         $this->assertDatabaseHas('clients', [

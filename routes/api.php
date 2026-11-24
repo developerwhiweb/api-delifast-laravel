@@ -37,6 +37,9 @@ Route::middleware([EnsureApiJson::class, EnsureApiTenant::class])
             Route::post('/logout', [AuthClientController::class, 'logout'])
                 ->name('api.client.logout');
 
+            Route::get('/email-verification/destination', [ClientSecurityController::class, 'emailVerificationDestination'])
+                ->name('api.client.email-verification.destination');
+
             Route::post('/email-verification/request', [ClientSecurityController::class, 'requestEmailVerification'])
                 ->middleware('throttle:5,1')
                 ->name('api.client.email-verification.request');
