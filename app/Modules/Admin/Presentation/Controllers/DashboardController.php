@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Tenant;
 use App\Modules\Admin\Business\DashboardAnalyticsService;
 use App\Modules\Admin\Business\DashboardService;
+use App\Modules\Admin\Business\PaymentLedgerService;
 use App\Services\ThemeManager;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,7 @@ class DashboardController
     public function __construct(
         protected DashboardService $service,
         protected DashboardAnalyticsService $analytics,
+        protected PaymentLedgerService $paymentLedger,
         ThemeManager $theme
     )
     {
@@ -128,6 +130,10 @@ class DashboardController
             }
 
             $order->update(['status' => $validated['status']]);
+
+            if ($order->status === 'canceled') {
+                $this->paymentLedger->cancelPendingForOrder((int) $tenantId, $order);
+            }
 
             return $order;
         });

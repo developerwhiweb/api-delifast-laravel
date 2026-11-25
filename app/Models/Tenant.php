@@ -17,6 +17,7 @@ class Tenant extends BaseTenant
         'slug',
         'domain',
         'database',
+        'timezone',
         'template_theme_id',
         'plan_id',
 

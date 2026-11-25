@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => {
                     'resources/js/app.js',
                     'resources/js/admin/orders-realtime.js',
                     'resources/js/admin/dashboard.js',
+                    'resources/js/admin/finance.js',
                 ],
                 refresh: true,
             }),

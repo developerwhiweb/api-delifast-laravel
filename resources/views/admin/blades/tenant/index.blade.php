@@ -122,6 +122,14 @@
                                                                         @method('PUT')
                                                                         {{-- @include('admin.blades.tenant.form', ['formPrefix' => 'edit'])    --}}
                                                                         @includeIf("admin.templates.{$themeData->slug}.{$themeData->template_variation}.templateTheme.form", ['formPrefix' => 'edit'])
+                                                                        <div class="mb-3">
+                                                                            <label for="tenant-timezone-{{ $tenant->id }}" class="form-label">Fuso horário do estabelecimento</label>
+                                                                            <select id="tenant-timezone-{{ $tenant->id }}" name="timezone" class="form-select" required>
+                                                                                @foreach (\DateTimeZone::listIdentifiers() as $timezone)
+                                                                                    <option value="{{ $timezone }}" {{ old('timezone', $tenant->timezone ?? config('app.timezone')) === $timezone ? 'selected' : '' }}>{{ $timezone }}</option>
+                                                                                @endforeach
+                                                                            </select>
+                                                                        </div>
                                                                         <div class="d-flex justify-content-end gap-2">
                                                                             <button type="button" class="btn btn-danger waves-effect waves-light" data-bs-dismiss="modal">{{__('dashboard.btn_cancel')}}</button>
                                                                             <button type="submit" class="btn btn-primary text-black waves-effect waves-light">{{__('dashboard.btn_save')}}</button>

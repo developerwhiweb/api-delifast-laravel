@@ -2,6 +2,14 @@
 
 return [
 
+    'finance' => [
+        'permission' => 'financeiro',
+        'actions' => [
+            'visualizar',
+            'editar',
+        ],
+    ],
+
     'administrativo' => [
         'permission' => 'administrativo',
         'actions' => [

@@ -67,6 +67,7 @@ class TenantController extends Controller
         $request->validate([
             'path_image_logo_header' => ['nullable','file','image','max:2048'],
             'path_image_logo_footer' => ['nullable','file','image','max:2048'],
+            'timezone' => ['sometimes', 'required', 'timezone'],
         ]);
 
         $data = $request->except([
@@ -278,6 +279,7 @@ class TenantController extends Controller
         $request->validate([
             'path_image_logo_header' => ['nullable','file','image','max:2048'],
             'path_image_logo_footer' => ['nullable','file','image','max:2048'],
+            'timezone' => ['sometimes', 'required', 'timezone'],
         ]);
 
         $data = $request->except([

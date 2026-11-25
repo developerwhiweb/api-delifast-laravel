@@ -350,8 +350,20 @@ class OrderController extends Controller
 
                 'notes' => $validated['notes'] ?? null,
 
-                'placed_at' => now(),
+                'placed_at' => now($tenant->timezone ?? config('app.timezone')),
             ]);
+
+            if ($order->total > 0) {
+                $placedAt = $order->placed_at;
+                $order->payments()->create([
+                    'amount' => $order->total,
+                    'method' => $order->payment_method,
+                    'status' => 'pending',
+                    'idempotency_key' => (string) Str::uuid(),
+                    'created_at' => $placedAt,
+                    'updated_at' => $placedAt,
+                ]);
+            }
 
             $order->items()->createMany($items);
 

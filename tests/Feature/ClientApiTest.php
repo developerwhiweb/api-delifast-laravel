@@ -929,6 +929,19 @@ class ClientApiTest extends TestCase
             $table->timestamp('placed_at');
             $table->timestamps();
         });
+        Schema::create('order_payments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('order_id');
+            $table->decimal('amount', 10, 2);
+            $table->string('method', 50)->nullable();
+            $table->string('status', 20)->default('pending');
+            $table->string('reference', 100)->nullable();
+            $table->text('notes')->nullable();
+            $table->uuid('idempotency_key');
+            $table->timestamp('paid_at')->nullable();
+            $table->timestamps();
+        });
 
         Schema::create('order_items', function (Blueprint $table) {
             $table->id();
@@ -1689,6 +1702,19 @@ class ClientApiTest extends TestCase
             $table->timestamp('placed_at');
             $table->timestamps();
         });
+        Schema::create('order_payments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('order_id');
+            $table->decimal('amount', 10, 2);
+            $table->string('method', 50)->nullable();
+            $table->string('status', 20)->default('pending');
+            $table->string('reference', 100)->nullable();
+            $table->text('notes')->nullable();
+            $table->uuid('idempotency_key');
+            $table->timestamp('paid_at')->nullable();
+            $table->timestamps();
+        });
         Schema::create('coupons', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('tenant_id');
@@ -1786,6 +1812,12 @@ class ClientApiTest extends TestCase
             'coupon_code' => 'BEMVINDO',
             'coupon_discount' => 5,
             'discount' => 5,
+        ]);
+        $this->assertDatabaseHas('order_payments', [
+            'order_id' => DB::table('orders')->where('payment_method', 'pix')->value('id'),
+            'amount' => 10,
+            'method' => 'pix',
+            'status' => 'pending',
         ]);
         $this->assertDatabaseHas('coupons', [
             'code' => 'BEMVINDO',

@@ -56,6 +56,7 @@ use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\EnsureTenantForAdmin;
 use App\Models\User;
 use App\Modules\Admin\Presentation\Controllers\DashboardController;
+use App\Modules\Admin\Presentation\Controllers\FinanceController;
 use App\Modules\Blog\Presentation\Controllers\BlogController;
 use App\Modules\Product\Presentation\Controllers\ProductController;
 use App\Modules\User\Presentation\Controllers\UserController;
@@ -165,6 +166,17 @@ Route::prefix('painel/')->group(function () {
 
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
         Route::get('/dashboard/analytics', [DashboardController::class, 'analytics'])->name('admin.dashboard.analytics');
+        Route::get('/dashboard/finance', [FinanceController::class, 'index'])->name('admin.dashboard.finance.index');
+        Route::get('/dashboard/finance/export', [FinanceController::class, 'export'])->name('admin.dashboard.finance.export');
+        Route::get('/dashboard/finance/snapshot', [FinanceController::class, 'snapshot'])->name('admin.dashboard.finance.snapshot');
+        Route::post('/dashboard/finance/orders/{order}/payments', [FinanceController::class, 'createPayment'])
+            ->name('admin.dashboard.finance.payments.store');
+        Route::patch('/dashboard/finance/payments/{payment}/status', [FinanceController::class, 'updatePaymentStatus'])
+            ->name('admin.dashboard.finance.payments.status');
+        Route::post('/dashboard/finance/payments/{payment}/refunds', [FinanceController::class, 'createRefund'])
+            ->name('admin.dashboard.finance.refunds.store');
+        Route::patch('/dashboard/finance/refunds/{refund}/status', [FinanceController::class, 'updateRefundStatus'])
+            ->name('admin.dashboard.finance.refunds.status');
         Route::get('/dashboard/administration', [DashboardController::class, 'administration'])->name('admin.dashboard.administration');
         Route::get('/dashboard/administration/orders/snapshot', [DashboardController::class, 'administrationSnapshot'])
             ->name('admin.dashboard.administration.orders.snapshot');
