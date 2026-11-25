@@ -187,7 +187,6 @@
                                         <th>Produto</th>
                                         <th class="text-nowrap">Status</th>
                                         <th class="text-nowrap">Preço</th>
-                                        <th class="text-nowrap">Margem</th>
                                         <th class="text-end">Ações</th>
                                     </tr>
                                 </thead>
@@ -271,7 +270,6 @@
                                                     —
                                                 @endif
                                             </td>
-                                            <td class="text-muted">—</td>
                                             <td class="text-end text-nowrap">
                                                 @if ($canEditProduct)
                                                     <a
