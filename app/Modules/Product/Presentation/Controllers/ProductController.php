@@ -67,15 +67,47 @@ class ProductController
      * Exibe o formulário de cadastro.
      */
     public function create(
+        Request $request,
         ThemeManager $theme
     ): View|RedirectResponse {
-        $data = $this->service->getCreateData($theme);
+        $data = $this->service->getCreateData($request, $theme);
 
         if (isset($data['forbidden'])) {
             return $data['forbidden'];
         }
 
         return view('admin.blades.product.create', $data);
+    }
+
+    public function updateStatus(
+        Request $request,
+        Product $product
+    ): JsonResponse {
+        $user = $request->user();
+        $canUpdateStatus = $user && (
+            $user->hasRole('Super')
+            || $user->can('usuario.tornar usuario master')
+            || (
+                $user->can('produtos.visualizar')
+                && $user->can('produtos.editar')
+            )
+        );
+
+        abort_unless($canUpdateStatus, 403);
+
+        $request->validate([
+            'active' => ['required', 'boolean'],
+        ]);
+
+        $product = $this->service->setActive(
+            $product,
+            $request->boolean('active')
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'active' => (bool) $product->active,
+        ]);
     }
 
     /**

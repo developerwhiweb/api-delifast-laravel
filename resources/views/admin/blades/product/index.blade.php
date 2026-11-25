@@ -163,7 +163,10 @@
 
                                 @if ($canCreateProduct)
                                     <a
-                                        href="{{ route('admin.dashboard.product.create') }}"
+                                        href="{{ route(
+                                            'admin.dashboard.product.create',
+                                            $category ? ['product_category_id' => $category->id] : []
+                                        ) }}"
                                         class="btn btn-primary text-black ms-auto"
                                     >
                                         <i class="mdi mdi-plus me-1"></i>
@@ -231,7 +234,25 @@
                                                 </div>
                                             </td>
                                             <td>
-                                                @if ($product->active)
+                                                @if ($canEditProduct)
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <label class="form-check form-switch mb-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                class="form-check-input product-status-toggle"
+                                                                role="switch"
+                                                                aria-label="Alterar disponibilidade de {{ $product->title }}"
+                                                                data-product-status-url="{{ route('admin.dashboard.product.status', ['product' => $product->id]) }}"
+                                                                @checked($product->active)
+                                                            >
+                                                        </label>
+                                                        <span class="badge {{ $product->active ? 'bg-success' : 'bg-danger' }} product-status-badge">
+                                                            <i class="mdi {{ $product->active ? 'mdi-check-circle-outline' : 'mdi-close-circle-outline' }} me-1"></i>
+                                                            <span class="product-status-text">{{ $product->active ? 'Disponível' : 'Indisponível' }}</span>
+                                                        </span>
+                                                    </div>
+                                                    <small class="product-status-error text-danger" aria-live="polite"></small>
+                                                @elseif ($product->active)
                                                     <span class="badge bg-success">
                                                         <i class="mdi mdi-check-circle-outline me-1"></i>
                                                         Disponível
@@ -362,6 +383,60 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.product-status-toggle').forEach(function (toggle) {
+                toggle.addEventListener('change', function () {
+                    var desiredActive = toggle.checked;
+                    var cell = toggle.closest('td');
+                    var errorMessage = cell.querySelector('.product-status-error');
+                    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+
+                    toggle.disabled = true;
+                    errorMessage.textContent = '';
+
+                    fetch(toggle.dataset.productStatusUrl, {
+                        method: 'PATCH',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfMeta ? csrfMeta.content : ''
+                        },
+                        body: JSON.stringify({ active: desiredActive })
+                    })
+                        .then(function (response) {
+                            return response.json().then(function (data) {
+                                if (!response.ok) {
+                                    throw new Error(data.message || 'Não foi possível atualizar o status.');
+                                }
+                                return data;
+                            });
+                        })
+                        .then(function (data) {
+                            var active = data.active === true;
+                            var badge = cell.querySelector('.product-status-badge');
+                            var icon = badge.querySelector('i');
+
+                            toggle.checked = active;
+                            badge.classList.toggle('bg-success', active);
+                            badge.classList.toggle('bg-danger', !active);
+                            icon.className = 'mdi ' + (active ? 'mdi-check-circle-outline' : 'mdi-close-circle-outline') + ' me-1';
+                            badge.querySelector('.product-status-text').textContent = active
+                                ? 'Disponível'
+                                : 'Indisponível';
+                        })
+                        .catch(function (error) {
+                            toggle.checked = !desiredActive;
+                            errorMessage.textContent = error.message || 'Não foi possível atualizar o status.';
+                        })
+                        .finally(function () {
+                            toggle.disabled = false;
+                        });
+                });
+            });
+        });
+    </script>
 
     @if ($errors->has('title') && $canCreateCategory)
         <script>

@@ -581,7 +581,7 @@ class ProductService
     }
 
 
-    public function getCreateData(ThemeManager $themeManager): array
+    public function getCreateData(Request $request, ThemeManager $themeManager): array
     {
         $settingTheme = (new SettingThemeRepository())->settingTheme();
 
@@ -604,9 +604,19 @@ class ProductService
             ];
         }
 
-        $categories = ProductCategory::active()
-            ->sorting()
-            ->get();
+        $lockedProductCategory = null;
+
+        if ($request->filled('product_category_id')) {
+            $lockedProductCategory = ProductCategory::findOrFail(
+                $request->query('product_category_id')
+            );
+        }
+
+        $categories = $lockedProductCategory
+            ? collect([$lockedProductCategory])
+            : ProductCategory::active()
+                ->sorting()
+                ->get();
 
         $brands = Brand::active()
             ->sorting()
@@ -618,6 +628,7 @@ class ProductService
         return [
             'categories' => $categories,
             'brands' => $brands,
+            'lockedProductCategory' => $lockedProductCategory,
 
             'productCategory' => $categories->pluck('title', 'id')->toArray(),
             'productBrand' => $brands->pluck('title', 'id')->toArray(),
@@ -861,6 +872,16 @@ class ProductService
             $product->path_image,
             $product->path_file,
         ]);
+    }
+
+    public function setActive(Product $product, bool $active): Product
+    {
+        if ($product->active !== $active) {
+            $product->active = $active;
+            $product->save();
+        }
+
+        return $product;
     }
 
     /*

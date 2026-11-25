@@ -1,20 +1,22 @@
 <div class="col-12 col-lg-6">
     <div class="row">
-        <div class="mb-3 col-12 col-lg-4 d-flex align-items-start flex-column">
-            <label for="category-select" class="form-label">Categoria(s) <span class="text-danger">*</span></label>
-            @php
-                $currentCategory = isset($product) ? $product->product_category_id : null;
-            @endphp
-        
-            <select name="product_category_id" class="form-select" id="category-select" required>
-                <option value="" disabled selected>Selecione o Cliente</option>
-                @foreach ($productCategory as $categoryValue => $categoryLabel)
-                    <option value="{{ $categoryValue }}" {{ $categoryValue == $currentCategory ? 'selected' : '' }}>
-                        {{ $categoryLabel }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
+        @if (empty($lockedProductCategory))
+            <div class="mb-3 col-12 col-lg-4 d-flex align-items-start flex-column">
+                <label for="category-select" class="form-label">Categoria(s) <span class="text-danger">*</span></label>
+                @php
+                    $currentCategory = isset($product) ? $product->product_category_id : null;
+                @endphp
+
+                <select name="product_category_id" class="form-select" id="category-select" required>
+                    <option value="" disabled selected>Selecione o Cliente</option>
+                    @foreach ($productCategory as $categoryValue => $categoryLabel)
+                        <option value="{{ $categoryValue }}" {{ $categoryValue == $currentCategory ? 'selected' : '' }}>
+                            {{ $categoryLabel }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+        @endif
         
         <div class="mb-3 col-6 d-flex align-items-start flex-column">
             <label for="brand-select" class="form-label">Marca(s) <span class="text-danger">*</span></label>

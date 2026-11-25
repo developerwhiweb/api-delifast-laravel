@@ -137,26 +137,28 @@
                         >
                     </div>
 
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Categoria *</label>
+                    @if (empty($lockedProductCategory))
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Categoria *</label>
 
-                        <select
-                            name="product_category_id"
-                            class="form-select"
-                            required
-                        >
-                            <option value="">Selecione uma categoria</option>
+                            <select
+                                name="product_category_id"
+                                class="form-select"
+                                required
+                            >
+                                <option value="">Selecione uma categoria</option>
 
-                            @foreach ($categories as $category)
-                                <option
-                                    value="{{ $category->id }}"
-                                    {{ old('product_category_id', $product->product_category_id ?? '') == $category->id ? 'selected' : '' }}
-                                >
-                                    {{ $category->title }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                                @foreach ($categories as $category)
+                                    <option
+                                        value="{{ $category->id }}"
+                                        {{ old('product_category_id', $product->product_category_id ?? '') == $category->id ? 'selected' : '' }}
+                                    >
+                                        {{ $category->title }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
 
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Marca</label>

@@ -346,6 +346,11 @@ Route::prefix('painel/')->group(function () {
             ->parameters(['produtos' => 'product'])
             ->names('admin.dashboard.product');
 
+        Route::patch(
+            'produtos/{product}/status',
+            [ProductController::class, 'updateStatus']
+        )->name('admin.dashboard.product.status');
+
         Route::post(
             'produtos/delete',
             [ProductController::class, 'destroySelected']

@@ -38,12 +38,32 @@
             @endif
 
             <form
-                action="{{ route('admin.dashboard.product.store') }}"
+                action="{{ $lockedProductCategory
+                    ? route('admin.dashboard.product.store', ['product_category_id' => $lockedProductCategory->id])
+                    : route('admin.dashboard.product.store') }}"
                 method="POST"
                 enctype="multipart/form-data"
                 id="productForm"
             >
                 @csrf
+
+                @if ($lockedProductCategory)
+                    <div class="mb-3">
+                        <label for="locked-product-category" class="form-label">Categoria</label>
+                        <input
+                            id="locked-product-category"
+                            type="text"
+                            class="form-control"
+                            value="{{ $lockedProductCategory->title }}"
+                            readonly
+                        >
+                    </div>
+                    <input
+                        type="hidden"
+                        name="product_category_id"
+                        value="{{ $lockedProductCategory->id }}"
+                    >
+                @endif
 
                 @include("admin.templates.{$themeData->slug}.{$themeData->template_variation}.product.form")
 

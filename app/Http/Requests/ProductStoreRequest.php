@@ -3,8 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesProductPrices;
+use App\Models\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class ProductStoreRequest extends FormRequest
 {
@@ -22,15 +24,27 @@ class ProductStoreRequest extends FormRequest
 
     protected function prepareForValidation()
     {
-        $this->merge([
+        $normalized = [
             'active' => $this->boolean('active'),
             'featured' => $this->boolean('featured'),
-        ] + $this->normalizeProductPrices());
+        ] + $this->normalizeProductPrices();
+
+        if ($this->query->has('product_category_id')) {
+            $normalized['product_category_id'] = $this->query('product_category_id');
+        }
+
+        $this->merge($normalized);
     }
 
     public function rules(): array
     {
         return array_merge([
+            'product_category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('product_categories', 'id')
+                    ->where('tenant_id', Tenant::current()?->id),
+            ],
             'sizes'   => 'array|nullable',
             'sizes.*' => 'string|max:50|nullable',
             'path_image' => ['nullable', 'file', 'image', 'max:2048', 'mimes:jpg,jpeg,png,gif'],
