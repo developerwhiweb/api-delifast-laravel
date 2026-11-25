@@ -5,6 +5,7 @@ namespace App\Modules\Admin\Presentation\Controllers;
 use App\Events\OrderRealtimeChanged;
 use App\Models\Order;
 use App\Models\Tenant;
+use App\Modules\Admin\Business\DashboardAnalyticsService;
 use App\Modules\Admin\Business\DashboardService;
 use App\Services\ThemeManager;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -18,7 +19,11 @@ use Illuminate\View\View;
 class DashboardController
 {
     protected ThemeManager $theme;
-    public function __construct(protected DashboardService $service, ThemeManager $theme)
+    public function __construct(
+        protected DashboardService $service,
+        protected DashboardAnalyticsService $analytics,
+        ThemeManager $theme
+    )
     {
         $this->theme = $theme;
     }
@@ -29,10 +34,40 @@ class DashboardController
         $user = $data['user'] ?? null;
 
         if ($user) {
+            $tenantId = Tenant::current()?->id;
+            $data['dashboardData'] = $tenantId
+                ? $this->analytics->getDashboardData((int) $tenantId)
+                : null;
+            $data['dashboardAnalyticsUrl'] = route('admin.dashboard.analytics');
+            $data['dashboardTenantId'] = $tenantId;
+
             return view('admin.dashboard', $data);
         }
 
         return redirect()->route('admin.login');
+    }
+
+    public function analytics(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'period' => ['sometimes', 'in:today,7,30,90'],
+        ]);
+        $tenantId = Tenant::current()?->id;
+
+        abort_if(! $tenantId, 404);
+
+        $data = $this->analytics->getDashboardData(
+            (int) $tenantId,
+            $validated['period'] ?? '7'
+        );
+        $data['productsHtml'] = view('admin.partials.dashboard-products', [
+            'products' => $data['products'],
+        ])->render();
+        $data['ordersHtml'] = view('admin.partials.dashboard-recent-orders', [
+            'orders' => $data['recentOrders'],
+        ])->render();
+
+        return response()->json($data);
     }
     public function administration(): View|RedirectResponse
     {

@@ -14,7 +14,12 @@ export default defineConfig(({ mode }) => {
         },
         plugins: [
             laravel({
-                input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/admin/orders-realtime.js'],
+                input: [
+                    'resources/css/app.css',
+                    'resources/js/app.js',
+                    'resources/js/admin/orders-realtime.js',
+                    'resources/js/admin/dashboard.js',
+                ],
                 refresh: true,
             }),
 

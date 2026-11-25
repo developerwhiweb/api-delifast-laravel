@@ -9,10 +9,9 @@
                 {{ __('dashboard.title_dashboard') }}
             </h1>
             <p class="text-muted small mb-0">
-                Gerencie todos os módulos do seu site
+                Acompanhe vendas, pedidos e desempenho da operação
             </p>
         </div>
-
     </div>
 
     <style>
@@ -380,6 +379,302 @@
         });
     </script>
 
+    @if($dashboardData)
+        @php
+            $metrics = $dashboardData['metrics'];
+            $revenueChange = $metrics['revenue_change'];
+        @endphp
+
+        <style>
+            .dashboard-metric-card {
+                height: 100%;
+                border: 1px solid rgba(152, 166, 173, .16);
+                transition: transform .18s ease, box-shadow .18s ease;
+            }
+
+            .dashboard-metric-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(15, 34, 58, .08);
+            }
+
+            .dashboard-metric-icon {
+                width: 44px;
+                height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 12px;
+                font-size: 22px;
+            }
+
+            .dashboard-product-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 14px 0;
+                border-bottom: 1px solid rgba(152, 166, 173, .16);
+            }
+
+            .dashboard-product-row:last-child {
+                border-bottom: 0;
+            }
+
+            .dashboard-product-image {
+                width: 46px;
+                height: 46px;
+                flex: 0 0 46px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                border-radius: 10px;
+                background: var(--bs-tertiary-bg, #f3f5f7);
+                color: #98a6ad;
+                font-size: 22px;
+            }
+
+            .dashboard-product-image img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+            .dashboard-product-details {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .dashboard-empty-state {
+                display: flex;
+                min-height: 150px;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                color: #98a6ad;
+                text-align: center;
+            }
+
+            .dashboard-empty-state i {
+                font-size: 30px;
+            }
+
+            .dashboard-table th {
+                white-space: nowrap;
+                font-weight: 600;
+            }
+
+            #dashboard-live[aria-busy="true"] #dashboard-sales-chart {
+                opacity: .55;
+            }
+
+            .bg-soft-purple {
+                color: #6f42c1;
+                background: rgba(111, 66, 193, .12);
+            }
+
+            .text-purple {
+                color: #6f42c1 !important;
+            }
+
+            @media (max-width: 575.98px) {
+                .dashboard-metric-card .card-body {
+                    padding: 1rem;
+                }
+
+                .dashboard-metric-value {
+                    font-size: 1.25rem;
+                }
+            }
+        </style>
+
+        <div
+            id="dashboard-live"
+            data-analytics-url="{{ $dashboardAnalyticsUrl }}"
+            data-tenant-id="{{ $dashboardTenantId ?? '' }}"
+            data-chart-labels="{{ json_encode($dashboardData['chart']['labels'], JSON_HEX_APOS | JSON_HEX_QUOT) }}"
+            data-chart-values="{{ json_encode($dashboardData['chart']['values'], JSON_HEX_APOS | JSON_HEX_QUOT) }}"
+            aria-busy="false"
+        >
+            <div id="dashboard-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+            <div id="dashboard-loading" class="alert alert-light d-none py-2" role="status" aria-live="polite">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                Atualizando os dados do painel…
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <span class="dashboard-metric-icon bg-soft-success text-success"><i class="mdi mdi-currency-brl" aria-hidden="true"></i></span>
+                            <div class="min-w-0">
+                                <div class="text-muted small">Faturamento do dia</div>
+                                <div class="dashboard-metric-value h4 mb-0" data-dashboard-metric="revenue">{{ 'R$ '.number_format($metrics['revenue'], 2, ',', '.') }}</div>
+                                <div id="dashboard-revenue-comparison" class="{{ $revenueChange === null ? 'text-muted' : ($revenueChange >= 0 ? 'text-success' : 'text-danger') }} small mt-1">
+                                    @if($revenueChange === null)
+                                        Sem base de comparação com o dia anterior
+                                    @else
+                                        {{ $revenueChange > 0 ? '+' : '' }}{{ number_format($revenueChange, 1, ',', '.') }}% em relação ao dia anterior
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <span class="dashboard-metric-icon bg-soft-primary text-primary"><i class="mdi mdi-package-variant-closed" aria-hidden="true"></i></span>
+                            <div>
+                                <div class="text-muted small">Pedidos recebidos hoje</div>
+                                <div class="dashboard-metric-value h4 mb-0" data-dashboard-metric="orders">{{ number_format($metrics['orders'], 0, ',', '.') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <span class="dashboard-metric-icon bg-soft-info text-info"><i class="mdi mdi-chart-line" aria-hidden="true"></i></span>
+                            <div>
+                                <div class="text-muted small">Ticket médio</div>
+                                <div class="dashboard-metric-value h4 mb-0" data-dashboard-metric="average_ticket">{{ 'R$ '.number_format($metrics['average_ticket'], 2, ',', '.') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <span class="dashboard-metric-icon bg-soft-warning text-warning"><i class="mdi mdi-bell-alert-outline" aria-hidden="true"></i></span>
+                            <div>
+                                <div class="text-muted small">Aguardando confirmação</div>
+                                <div class="dashboard-metric-value h4 mb-0" data-dashboard-metric="waiting">{{ number_format($metrics['waiting'], 0, ',', '.') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <span class="dashboard-metric-icon bg-soft-primary text-primary"><i class="mdi mdi-chef-hat" aria-hidden="true"></i></span>
+                            <div>
+                                <div class="text-muted small">Em preparação</div>
+                                <div class="dashboard-metric-value h4 mb-0" data-dashboard-metric="preparing">{{ number_format($metrics['preparing'], 0, ',', '.') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <span class="dashboard-metric-icon bg-soft-purple"><i class="mdi mdi-moped-outline" aria-hidden="true"></i></span>
+                            <div>
+                                <div class="text-muted small">Em rota de entrega</div>
+                                <div class="dashboard-metric-value h4 mb-0" data-dashboard-metric="out_for_delivery">{{ number_format($metrics['out_for_delivery'], 0, ',', '.') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <div class="card dashboard-metric-card">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <span class="dashboard-metric-icon bg-soft-danger text-danger"><i class="mdi mdi-close-circle-outline" aria-hidden="true"></i></span>
+                            <div>
+                                <div class="text-muted small">Cancelados hoje</div>
+                                <div class="dashboard-metric-value h4 mb-0" data-dashboard-metric="canceled">{{ number_format($metrics['canceled'], 0, ',', '.') }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+                                <div>
+                                    <h4 class="header-title mb-1">Faturamento por período</h4>
+                                    <p class="text-muted small mb-0">Valores registrados nos pedidos, excluindo cancelamentos</p>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="dashboard-period" class="text-muted small mb-0">Período</label>
+                                    <select id="dashboard-period" class="form-select form-select-sm" aria-label="Período do gráfico de vendas">
+                                        <option value="today" {{ $dashboardData['period'] === 'today' ? 'selected' : '' }}>Hoje</option>
+                                        <option value="7" {{ $dashboardData['period'] === '7' ? 'selected' : '' }}>Últimos 7 dias</option>
+                                        <option value="30" {{ $dashboardData['period'] === '30' ? 'selected' : '' }}>Últimos 30 dias</option>
+                                        <option value="90" {{ $dashboardData['period'] === '90' ? 'selected' : '' }}>Últimos 90 dias</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="dashboard-sales-chart" role="img" aria-label="Gráfico de faturamento por período"></div>
+                            <div id="dashboard-sales-empty" class="dashboard-empty-state d-none" role="status">
+                                <i class="mdi mdi-chart-line-variant" aria-hidden="true"></i>
+                                <p class="mb-0">Ainda não há vendas registradas neste período.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-xl-5">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                                <div>
+                                    <h4 class="header-title mb-1">Produtos mais vendidos</h4>
+                                    <p class="text-muted small mb-0">Ranking por quantidade no período selecionado</p>
+                                </div>
+                                <i class="mdi mdi-trophy-outline text-warning fs-4" aria-hidden="true"></i>
+                            </div>
+                            <div id="dashboard-products">
+                                @include('admin.partials.dashboard-products', ['products' => $dashboardData['products']])
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-xl-7">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start justify-content-between gap-2 mb-3">
+                                <div>
+                                    <h4 class="header-title mb-1">Últimos pedidos</h4>
+                                    <p class="text-muted small mb-0">Pedidos mais recentes do estabelecimento</p>
+                                </div>
+                                <a href="{{ route('admin.dashboard.administration') }}" class="btn btn-sm btn-light">
+                                    Gerenciar pedidos <i class="mdi mdi-arrow-right ms-1" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle dashboard-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Pedido</th>
+                                            <th>Cliente</th>
+                                            <th>Data e hora</th>
+                                            <th>Total</th>
+                                            <th>Pagamento</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-recent-orders">
+                                        @include('admin.partials.dashboard-recent-orders', ['orders' => $dashboardData['recentOrders']])
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="dashboard-sync-status" class="text-muted small mt-2" role="status" aria-live="polite"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @else
+        <div class="alert alert-info" role="status">
+            Não foi possível identificar o estabelecimento deste acesso para carregar os indicadores.
+        </div>
+    @endif
+
 
    {{-- ============================================================
         HOME
@@ -439,4 +734,8 @@
 
     @include('admin.loadPage.loading')
 
+@endsection
+
+@section('scripts')
+    @vite('resources/js/admin/dashboard.js')
 @endsection

@@ -164,7 +164,7 @@ Route::prefix('painel/')->group(function () {
         })->name('loading');
 
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
-
+        Route::get('/dashboard/analytics', [DashboardController::class, 'analytics'])->name('admin.dashboard.analytics');
         Route::get('/dashboard/administration', [DashboardController::class, 'administration'])->name('admin.dashboard.administration');
         Route::get('/dashboard/administration/orders/snapshot', [DashboardController::class, 'administrationSnapshot'])
             ->name('admin.dashboard.administration.orders.snapshot');
