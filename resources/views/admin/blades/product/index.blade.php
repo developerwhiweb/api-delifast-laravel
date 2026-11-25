@@ -17,6 +17,16 @@
             || $user->can('usuario.tornar usuario master')
             || ($user->can('categorias de produtos.visualizar') && $user->can('categorias de produtos.criar'))
         );
+        $canEditCategory = $theme->hasModule('product_categories') && (
+            $user->hasRole('Super')
+            || $user->can('usuario.tornar usuario master')
+            || ($user->can('categorias de produtos.visualizar') && $user->can('categorias de produtos.editar'))
+        );
+        $canDeleteCategory = $theme->hasModule('product_categories') && (
+            $user->hasRole('Super')
+            || $user->can('usuario.tornar usuario master')
+            || ($user->can('categorias de produtos.visualizar') && $user->can('categorias de produtos.remover'))
+        );
         $canViewCategories = $theme->hasModule('product_categories') && (
             $user->hasRole('Super')
             || $user->can('usuario.tornar usuario master')
@@ -36,10 +46,16 @@
 
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         @if ($canViewCategories)
-                            <a href="{{ route('admin.dashboard.productCategory.index') }}" class="btn btn-light">
+                            <button
+                                type="button"
+                                class="btn btn-light"
+                                data-bs-toggle="modal"
+                                data-bs-target="#productCategory-manage"
+                            >
                                 <i class="mdi mdi-shape-outline me-1"></i>
                                 Gerenciar categorias
-                            </a>
+                            </button>
+                            @include('admin.blades.product.partials.category-management')
                         @endif
 
                         @if ($canCreateCategory)
@@ -384,6 +400,30 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-product-category-modal-target]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var managerElement = document.getElementById('productCategory-manage');
+                    var targetElement = document.querySelector(button.dataset.productCategoryModalTarget);
+
+                    if (!managerElement || !targetElement) {
+                        return;
+                    }
+
+                    var managerModal = bootstrap.Modal.getOrCreateInstance(managerElement);
+                    var targetModal = bootstrap.Modal.getOrCreateInstance(targetElement);
+
+                    targetElement.addEventListener('hidden.bs.modal', function () {
+                        managerModal.show();
+                    }, { once: true });
+
+                    managerElement.addEventListener('hidden.bs.modal', function () {
+                        targetModal.show();
+                    }, { once: true });
+
+                    managerModal.hide();
+                });
+            });
+
             document.querySelectorAll('.product-status-toggle').forEach(function (toggle) {
                 toggle.addEventListener('change', function () {
                     var desiredActive = toggle.checked;
