@@ -177,10 +177,10 @@ Route::prefix('painel/')->group(function () {
             ->name('admin.dashboard.finance.refunds.store');
         Route::patch('/dashboard/finance/refunds/{refund}/status', [FinanceController::class, 'updateRefundStatus'])
             ->name('admin.dashboard.finance.refunds.status');
-        Route::get('/dashboard/administration', [DashboardController::class, 'administration'])->name('admin.dashboard.administration');
-        Route::get('/dashboard/administration/orders/snapshot', [DashboardController::class, 'administrationSnapshot'])
+        Route::get('/dashboard/pedidos', [DashboardController::class, 'administration'])->name('admin.dashboard.administration');
+        Route::get('/dashboard/pedidos/orders/snapshot', [DashboardController::class, 'administrationSnapshot'])
             ->name('admin.dashboard.administration.orders.snapshot');
-        Route::patch('/dashboard/administration/orders/{id}/status', [DashboardController::class, 'updateOrderStatus'])
+        Route::patch('/dashboard/pedidos/orders/{id}/status', [DashboardController::class, 'updateOrderStatus'])
             ->name('admin.dashboard.administration.orders.status');
 
         Route::resource('pop-up', PopUpController::class)

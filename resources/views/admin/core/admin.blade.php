@@ -108,6 +108,15 @@
                                     <span class="menu-text">Dashboard</span>
                                 </a>
                             </li>
+                            @if (Auth::user()->hasRole('Super') || Auth::user()->hasPermissionTo('administrativo.visualizar'))                                
+                                <li class="menu-item">
+                                    <a href="{{ route('admin.dashboard.administration') }}" class="menu-link {{ request()->routeIs('admin.dashboard.finance.*') ? 'active' : '' }}" @if (request()->routeIs('admin.dashboard.finance.*')) aria-current="page" @endif>
+                                        <span class="menu-icon"><i class="mdi mdi-clipboard-list-outline"></i></span>
+                                        <span class="menu-text">Pedidos</span>
+                                    </a>
+                                </li>
+                            @endif
+
                             @if ((Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('financeiro.visualizar') || Auth::user()->can('financeiro.editar')))
                                 <li class="menu-item">
                                     <a href="{{ route('admin.dashboard.finance.index') }}" class="menu-link {{ request()->routeIs('admin.dashboard.finance.*') ? 'active' : '' }}" @if (request()->routeIs('admin.dashboard.finance.*')) aria-current="page" @endif>
@@ -280,21 +289,7 @@
                                 <i class="mdi mdi-menu"></i>
                             </button>
                         </div>
-                        <ul class="topbar-menu d-flex align-items-center">
-                            <!-- Fullscreen Button -->
-                            <li class="d-none d-md-inline-block">
-                                <a class="nav-link waves-effect waves-light" href="{{route('admin.dashboard')}}">
-                                    Dashboard
-                                </a>
-                            </li>
-                            @if (Auth::user()->hasRole('Super') || Auth::user()->hasPermissionTo('administrativo.visualizar'))                                
-                                <li class="d-none d-md-inline-block">
-                                    <a class="nav-link waves-effect waves-light" href="{{route('admin.dashboard.administration')}}">
-                                        Gestão da Plataforma
-                                    </a>
-                                </li>
-                            @endif
-                        </ul>
+
                         <ul class="topbar-menu d-flex align-items-center">
                             @if (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can(['configuracao do tema.visualizar', 'configuracao do tema.editar']))
                                 <li class="d-none d-md-inline-block">
