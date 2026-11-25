@@ -108,9 +108,9 @@
                                     <span class="menu-text">Dashboard</span>
                                 </a>
                             </li>
-                            @if (Auth::user()->tenant_id && (Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('financeiro.visualizar') || Auth::user()->can('financeiro.editar')))
+                            @if ((Auth::user()->hasRole('Super') || Auth::user()->can('usuario.tornar usuario master') || Auth::user()->can('financeiro.visualizar') || Auth::user()->can('financeiro.editar')))
                                 <li class="menu-item">
-                                    <a href="{{ route('admin.dashboard.finance.index') }}" class="menu-link">
+                                    <a href="{{ route('admin.dashboard.finance.index') }}" class="menu-link {{ request()->routeIs('admin.dashboard.finance.*') ? 'active' : '' }}" @if (request()->routeIs('admin.dashboard.finance.*')) aria-current="page" @endif>
                                         <span class="menu-icon"><i class="mdi mdi-cash-multiple"></i></span>
                                         <span class="menu-text">Financeiro</span>
                                     </a>

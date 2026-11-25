@@ -8,6 +8,7 @@ use App\Modules\Admin\Business\Exports\FinanceReportExport;
 use App\Modules\Admin\Business\Exports\FinanceSummaryExport;
 use App\Modules\Admin\Business\FinanceAnalyticsService;
 use App\Modules\Admin\Business\PaymentLedgerService;
+use App\Services\ThemeManager;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FinanceController
 {
-    public function index(Request $request, FinanceAnalyticsService $analytics)
+    public function index(Request $request, FinanceAnalyticsService $analytics, ThemeManager $theme)
     {
         $this->authorizeFinance('visualizar');
         $tenant = $this->currentTenant();
@@ -31,6 +32,7 @@ class FinanceController
         $orders = $this->loadOrders($analytics, (int) $tenant->id, $range, $filters);
 
         return view('admin.finance.index', [
+            'theme' => $theme,
             'tenant' => $tenant,
             'filters' => $filters,
             'range' => $range,

@@ -32,6 +32,11 @@
             'last_month' => 'Mês passado',
             'custom' => 'Personalizado',
         ];
+        $financeChartData = [
+            'sales_chart' => $overview['sales_chart'],
+            'delivery_chart' => $overview['delivery_chart'],
+            'payment_methods' => $overview['payment_methods'],
+        ];
     @endphp
 
     <div id="finance-live" data-snapshot-url="{{ route('admin.dashboard.finance.snapshot') }}" data-tenant-id="{{ $tenant->id }}" aria-busy="false">
@@ -243,11 +248,7 @@
 
 @section('scripts')
     <script>
-        window.financeCharts = @json([
-            'sales_chart' => $overview['sales_chart'],
-            'delivery_chart' => $overview['delivery_chart'],
-            'payment_methods' => $overview['payment_methods'],
-        ]);
+        window.financeCharts = @json($financeChartData);
     </script>
     @vite('resources/js/admin/finance.js')
 @endsection
