@@ -494,7 +494,8 @@ class ProductService
             ->get()
             ->keyBy('section');
 
-        $categories = ProductCategory::active()
+        $categories = ProductCategory::query()
+            ->withCount('products')
             ->sorting()
             ->get();
 
@@ -515,10 +516,48 @@ class ProductService
             );
         }
 
+        if ($request->filled('product_type')) {
+            $productsQuery->where(
+                'product_type',
+                $request->product_type
+            );
+        }
+
         $products = $productsQuery
             ->sorting()
             ->paginate(60)
             ->withQueryString();
+
+        $productsByCategory = $products->getCollection()->groupBy(
+            fn (Product $product) => $product->product_category_id ?? 'uncategorized'
+        );
+
+        $categoryGroups = $categories
+            ->map(function (ProductCategory $category) use ($productsByCategory) {
+                $categoryProducts = $productsByCategory->get($category->id, collect());
+
+                if ($categoryProducts->isEmpty()) {
+                    return null;
+                }
+
+                return [
+                    'category' => $category,
+                    'products' => $categoryProducts,
+                    'count' => (int) $category->products_count,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $uncategorizedProducts = $productsByCategory->get('uncategorized', collect());
+
+        if ($uncategorizedProducts->isNotEmpty()) {
+            $categoryGroups->push([
+                'category' => null,
+                'products' => $uncategorizedProducts,
+                'count' => $uncategorizedProducts->count(),
+            ]);
+        }
 
         $productCategory = [];
 
@@ -531,6 +570,7 @@ class ProductService
 
         return compact(
             'products',
+            'categoryGroups',
             'categories',
             'productCategory',
             'theme',

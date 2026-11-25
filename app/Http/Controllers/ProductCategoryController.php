@@ -47,11 +47,23 @@ class ProductCategoryController extends Controller
 
     public function store(Request $request)
     {
+        $settingTheme = (new SettingThemeRepository())->settingTheme();
+        $check = checkPermission(
+            'product_categories',
+            'categorias de produtos.criar',
+            $settingTheme
+        );
+
+        if ($check !== true) {
+            return $check;
+        }
+
         $data = $request->except(['path_image']);
         $pathUpload = $this->getPathUpload();
         $manager = new ImageManager(new ImagickDriver());
 
         $request->validate([
+            'title' => ['required', 'string', 'max:255'],
             'path_image' => ['nullable', 'file', 'image', 'max:2048'],
         ]);
 
