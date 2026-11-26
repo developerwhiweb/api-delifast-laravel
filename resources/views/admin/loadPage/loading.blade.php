@@ -1,11 +1,20 @@
 <style>
     .loading-indicator {
+        --loading-background: #021127;
+        --loading-color: #FFFFFF;
+        --loading-glow: rgba(255, 255, 255, 0.15);
+        --loading-glow-end: rgba(124, 58, 237, 0);
+        --loading-ring-top: rgba(255, 255, 255, 0.95);
+        --loading-ring-bottom: rgba(255, 255, 255, 0.25);
+        --loading-ring-left: rgba(255, 255, 255, 0.7);
+        --loading-ring-right: rgba(255, 255, 255, 0.2);
+        --loading-dots: rgba(255, 255, 255, 0.9);
         position: fixed;
         top: 0;
         left: 0;
         width: 100vw;
         height: 100vh;
-        background-color: #021127;
+        background-color: var(--loading-background);
         display: flex;
         justify-content: center;
         align-items: center;
@@ -32,7 +41,7 @@
         align-items: center;
         margin-bottom: 20px;
         /* Glow sutil atrás do spinner para destacar a marca */
-        background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, rgba(124, 58, 237, 0) 70%);
+        background: radial-gradient(circle, var(--loading-glow) 0%, var(--loading-glow-end) 70%);
         border-radius: 50%;
     }
 
@@ -43,8 +52,8 @@
         height: 100%;
         border-radius: 50%;
         border: 3px solid transparent;
-        border-top-color: rgba(255, 255, 255, 0.95);
-        border-bottom-color: rgba(255, 255, 255, 0.25);
+        border-top-color: var(--loading-ring-top);
+        border-bottom-color: var(--loading-ring-bottom);
         animation: spin 1.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
     }
 
@@ -55,8 +64,8 @@
         height: 82%;
         border-radius: 50%;
         border: 2px solid transparent;
-        border-left-color: rgba(255, 255, 255, 0.7);
-        border-right-color: rgba(255, 255, 255, 0.2);
+        border-left-color: var(--loading-ring-left);
+        border-right-color: var(--loading-ring-right);
         animation: spin-reverse 1.3s linear infinite;
     }
 
@@ -72,7 +81,7 @@
 
     /* Mensagem */
     .loading-title {
-        color: #FFFFFF;
+        color: var(--loading-color);
         font-size: 1.15rem;
         font-weight: 500;
         letter-spacing: 0.5px;
@@ -90,13 +99,29 @@
     .loading-dots span {
         width: 6px;
         height: 6px;
-        background-color: rgba(255, 255, 255, 0.9);
+        background-color: var(--loading-dots);
         border-radius: 50%;
         animation: dots-bounce 1.4s infinite ease-in-out both;
     }
 
     .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
     .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+    html[data-bs-theme="light"] .loading-indicator {
+        --loading-background: #fdf3e4;
+        --loading-color: #021127;
+        --loading-glow: rgba(2, 17, 39, 0.12);
+        --loading-glow-end: rgba(2, 17, 39, 0);
+        --loading-ring-top: rgba(2, 17, 39, 0.95);
+        --loading-ring-bottom: rgba(2, 17, 39, 0.25);
+        --loading-ring-left: rgba(2, 17, 39, 0.7);
+        --loading-ring-right: rgba(2, 17, 39, 0.2);
+        --loading-dots: rgba(2, 17, 39, 0.9);
+    }
+
+    html[data-bs-theme="light"] .loading-indicator .brand-logo {
+        filter: none;
+    }
 
     /* Keyframes */
     @keyframes spin {
