@@ -50,7 +50,7 @@
                                 data-stage-color="{{ $stage['color'] }}"
                             >
                                 <div class="orders-column-heading d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0">{{ $stage['label'] }}</h5>
+                                    <h5 class="mb-0 text-dark">{{ $stage['label'] }}</h5>
                                     <span class="badge bg-white text-dark" data-stage-count>{{ $stageOrders->count() }}</span>
                                 </div>
 

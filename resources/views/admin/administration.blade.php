@@ -187,17 +187,17 @@
         }
 
         .bg-soft-purple {
-            color: #fb6c04;
-            background: rgba(251, 108, 4, .12);
+            color: var(--ct-primary-text);
+            background: var(--ct-primary-bg-subtle);
         }
 
         .text-purple {
-            color: #fb6c04 !important;
+            color: var(--ct-primary-text) !important;
         }
 
         .bg-soft-dark {
-            color: #495057;
-            background: rgba(73, 80, 87, .12);
+            color: var(--ct-secondary-text);
+            background: var(--ct-secondary-bg-subtle);
         }
 
         @media (max-width: 575.98px) {

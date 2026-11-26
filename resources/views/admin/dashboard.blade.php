@@ -89,13 +89,13 @@
 
         /* Geral */
         .announcement-general {
-            background: #fdf3e4;
-            border-color: #f2c99e;
-            color: #021127;
+            background: var(--ct-secondary-bg);
+            border-color: var(--ct-border-color);
+            color: var(--ct-body-color);
         }
 
         .announcement-general .announcement-icon {
-            background: #f5e8d6;
+            background: var(--ct-tertiary-bg);
         }
 
         .announcement-general .announcement-button {
@@ -105,13 +105,13 @@
 
         /* Manutenção */
         .announcement-maintenance {
-            background: #fff8e6;
-            border-color: #ffe69c;
-            color: #664d03;
+            background: var(--ct-warning-bg-subtle);
+            border-color: var(--ct-warning-border-subtle);
+            color: var(--ct-warning-text);
         }
 
         .announcement-maintenance .announcement-icon {
-            background: #ffe69c;
+            background: var(--ct-warning-border-subtle);
         }
 
         .announcement-maintenance .announcement-button {
@@ -121,13 +121,13 @@
 
         /* Atualização */
         .announcement-update {
-            background: #eefbf3;
-            border-color: #badbcc;
-            color: #0f5132;
+            background: var(--ct-success-bg-subtle);
+            border-color: var(--ct-success-border-subtle);
+            color: var(--ct-success-text);
         }
 
         .announcement-update .announcement-icon {
-            background: #badbcc;
+            background: var(--ct-success-border-subtle);
         }
 
         .announcement-update .announcement-button {
@@ -137,13 +137,13 @@
 
         /* Promoção */
         .announcement-promotion {
-            background: #fdf3e4;
-            border-color: #f2c99e;
-            color: #021127;
+            background: var(--ct-secondary-bg);
+            border-color: var(--ct-border-color);
+            color: var(--ct-body-color);
         }
 
         .announcement-promotion .announcement-icon {
-            background: #f5e8d6;
+            background: var(--ct-tertiary-bg);
         }
 
         .announcement-promotion .announcement-button {
@@ -153,13 +153,13 @@
 
         /* Aviso */
         .announcement-warning {
-            background: #fff1f2;
-            border-color: #fecdd3;
-            color: #881337;
+            background: var(--ct-danger-bg-subtle);
+            border-color: var(--ct-danger-border-subtle);
+            color: var(--ct-danger-text);
         }
 
         .announcement-warning .announcement-icon {
-            background: #fecdd3;
+            background: var(--ct-danger-border-subtle);
         }
 
         .announcement-warning .announcement-button {
@@ -189,14 +189,14 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(0, 0, 0, .06);
+        background: rgba(var(--ct-body-color-rgb), .06);
         color: inherit;
         cursor: pointer;
         transition: .2s ease;
         }
 
         .announcement-toggle:hover {
-        background: rgba(0, 0, 0, .12);
+        background: rgba(var(--ct-body-color-rgb), .12);
         }
 
         .announcement-toggle i {
@@ -207,11 +207,11 @@
         display: none;
         align-items: center;
         gap: 7px;
-        border: 1px solid #dee2e6;
+        border: 1px solid var(--ct-border-color);
         border-radius: 8px;
         padding: 6px 11px;
-        background: #fff;
-        color: #495057;
+        background: var(--ct-secondary-bg);
+        color: var(--ct-body-color);
         font-size: 12px;
         font-weight: 600;
         cursor: pointer;
@@ -429,7 +429,7 @@
                 overflow: hidden;
                 border-radius: 10px;
                 background: var(--bs-tertiary-bg, #f3f5f7);
-                color: #98a6ad;
+                color: var(--ct-secondary-color);
                 font-size: 22px;
             }
 
@@ -451,7 +451,7 @@
                 align-items: center;
                 justify-content: center;
                 gap: 8px;
-                color: #98a6ad;
+                color: var(--ct-secondary-color);
                 text-align: center;
             }
 
@@ -469,12 +469,12 @@
             }
 
             .bg-soft-purple {
-                color: #fb6c04;
-                background: rgba(251, 108, 4, .12);
+                color: var(--ct-primary-text);
+                background: var(--ct-primary-bg-subtle);
             }
 
             .text-purple {
-                color: #fb6c04 !important;
+                color: var(--ct-primary-text) !important;
             }
 
             @media (max-width: 575.98px) {
@@ -694,7 +694,7 @@
                             href="https://www.whi.dev.br/"
                             target="_blank"
                             rel="noopener noreferrer"
-                            style="color:#94a0ad;"
+                            style="color: var(--ct-secondary-color);"
                         >
                             <script>
                                 document.write(new Date().getFullYear())
