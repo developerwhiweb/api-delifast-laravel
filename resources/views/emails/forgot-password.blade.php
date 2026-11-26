@@ -12,7 +12,7 @@
             <!-- Header -->
             <tr>
                 <td colspan="2" style="text-align: center; padding: 40px 0;position: relative;overflow:hidden; background-image: url('{{ asset('build/admin/images/fundo.png') }}'); background-position: top center; background-repeat: no-repeat; background-size: cover;">
-                    <img src="{{ asset('build/admin/images/whi-green-horizontal.png') }}" alt="WHI - Web de Alta Inovação" style="width: 210px; display: block; margin: 0 auto;">
+                    <img src="{{ asset('build/admin/images/whi-green-horizontal.png') }}" alt="DeliFast - Sistema de Delivery" style="width: 210px; display: block; margin: 0 auto;">
                 </td>
             </tr>
 
@@ -25,14 +25,14 @@
                         Você solicitou a redefinição de sua senha. Clique no link abaixo para redefini-la:
                     </p>
                     <p style="text-align: center; margin-bottom: 30px;">
-                        <a href="{{ $url }}" style="background-color: #CBFF4D; color: #10131C; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                        <a href="{{ $url }}" style="background-color: #fb6c04; color: #021127; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
                             Redefinir Senha
                         </a>
                     </p>
                     <p style="color: #555; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
                         Se você não solicitou esta alteração, nenhuma ação é necessária.
                     </p>
-                    <p style="color: #555; font-size: 16px; line-height: 1.5;">Atenciosamente,<br><img src="{{ asset('build/admin/images/whi-black.png') }}" alt="WHI - Web de Alta Inovação" style="width: 50px"></p>
+                    <p style="color: #555; font-size: 16px; line-height: 1.5;">Atenciosamente,<br><img src="{{ asset('build/admin/images/whi-black.png') }}" alt="DeliFast - Sistema de Delivery" style="width: 50px"></p>
                 </td>
             </tr>
 
@@ -40,15 +40,15 @@
             <tr>
                 <td colspan="2" style="background-image: url('{{ asset('build/admin/images/fundo.png') }}'); background-position: top center; background-repeat: no-repeat; background-size: cover; padding: 0;">
                     <!-- Linha superior colorida -->
-                    <div style="width: 100%; height: 4px; background-color: #CBFF4D;"></div>
+                    <div style="width: 100%; height: 4px; background-color: #fb6c04;"></div>
 
                     <!-- Logotipo centralizado -->
                     <div style="padding: 20px 0px; text-align: center;padding-bottom:10px;">
-                        <img src="{{ asset('build/admin/images/whi-green-horizontal.png') }}" alt="WHI - Web de Alta Inovação" style="width: 210px; display: block; margin: 0 auto;">
+                        <img src="{{ asset('build/admin/images/whi-green-horizontal.png') }}" alt="DeliFast - Sistema de Delivery" style="width: 210px; display: block; margin: 0 auto;">
                     </div>
                     
                     <div style="text-align: center;">
-                        <a href="https://www.instagram.com/agenciawhi/?igsh=MXNkODZwOGp0MmFpbg%3D%3D#" target="_blank" style="font-weight: bold;color: #CBFF4D;font-size: 12px;text-decoration: none;display: inline-block;">
+                        <a href="https://www.instagram.com/agenciawhi/?igsh=MXNkODZwOGp0MmFpbg%3D%3D#" target="_blank" style="font-weight: bold;color: #fb6c04;font-size: 12px;text-decoration: none;display: inline-block;">
                             @agenciawhi
                         </a>
                     </div>
