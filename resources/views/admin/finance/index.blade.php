@@ -40,7 +40,7 @@
     @endphp
 
     <div id="finance-live" data-snapshot-url="{{ route('admin.dashboard.finance.snapshot') }}" data-tenant-id="{{ $tenant->id }}" aria-busy="false">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 my-3">
         <div>
             <h1 class="h3 mb-1"><i class="mdi mdi-cash-multiple text-primary me-2"></i>Financeiro</h1>
             <p class="text-muted mb-0">Visão financeira de {{ $tenant->name }} no fuso {{ $range['timezone'] }}.</p>

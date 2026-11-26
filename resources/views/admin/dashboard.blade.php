@@ -6,7 +6,7 @@
         <div>
             <h1 class="h3 mb-0 text-gray-800">
                 <i class="mdi mdi-view-dashboard-outline me-2 text-primary"></i>
-                {{ __('dashboard.title_dashboard') }}
+                Dashboard
             </h1>
             <p class="text-muted small mb-0">
                 Acompanhe vendas, pedidos e desempenho da operação
@@ -589,7 +589,7 @@
                 </div>
             </div>
 
-            <div class="row g-3">
+            <div class="row g-3 mb-3">
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
@@ -617,7 +617,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-xl-5">
+                <div class="col-12 col-xl-4">
                     <div class="card h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
@@ -634,7 +634,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-xl-7">
+                <div class="col-12 col-xl-8">
                     <div class="card h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-start justify-content-between gap-2 mb-3">
