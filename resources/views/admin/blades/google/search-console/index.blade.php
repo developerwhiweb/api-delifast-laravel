@@ -4,7 +4,7 @@
 
 <style>
     .nav-tabs .nav-link.active {
-        background-color: #cbff4d;
+        background-color: #fb6c04;
     }
 
     .nav-link {
@@ -1270,7 +1270,7 @@
                 info: {
                     icon: 'bi bi-info-circle-fill',
                     color: 'text-primary',
-                    background: 'rgba(13, 110, 253, .10)',
+                    background: 'rgba(251, 108, 4, .12)',
                 },
             };
 

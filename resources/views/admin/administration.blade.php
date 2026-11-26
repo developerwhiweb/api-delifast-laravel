@@ -187,12 +187,12 @@
         }
 
         .bg-soft-purple {
-            color: #6f42c1;
-            background: rgba(111, 66, 193, .12);
+            color: #fb6c04;
+            background: rgba(251, 108, 4, .12);
         }
 
         .text-purple {
-            color: #6f42c1 !important;
+            color: #fb6c04 !important;
         }
 
         .bg-soft-dark {

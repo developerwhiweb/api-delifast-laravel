@@ -220,7 +220,7 @@
                         'badge rounded-pill d-inline-flex align-items-center gap-2';
 
                     tag.style.backgroundColor = '#eef4ff';
-                    tag.style.color = '#0d6efd';
+                    tag.style.color = 'var(--ct-primary)';
                     tag.style.padding = '7px 10px';
                     tag.style.fontSize = '13px';
 
@@ -558,7 +558,7 @@
 
                     tag.style.backgroundColor = '#eef4ff';
 
-                    tag.style.color = '#0d6efd';
+                    tag.style.color = 'var(--ct-primary)';
 
                     tag.style.padding = '7px 10px';
 

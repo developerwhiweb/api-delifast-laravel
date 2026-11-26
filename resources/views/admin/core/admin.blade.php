@@ -23,7 +23,6 @@
         <meta name="robots" content="none">
         <meta name="googlebot" content="noarchive">
         
-        <link href="{{ asset('build/admin/css/custom.css') }}" rel="stylesheet" type="text/css" />
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 document.body.classList.add('loaded');
@@ -53,6 +52,7 @@
         <link href="{{ asset('build/admin/css/icons.min.css') }}" rel="stylesheet" type="text/css" />
         
         <link href="{{ asset('build/admin/js/libs/sweetalert2/sweetalert2.min.css') }}" rel="stylesheet" type="text/css" />
+        <link href="{{ asset('build/admin/css/custom.css') }}" rel="stylesheet" type="text/css" />
 
         <!-- Theme Config Js -->
         <script src="{{ asset('build/admin/js/head.js') }}"></script>
@@ -66,7 +66,7 @@
     <body class="loading">
         <style>
             .swal2-styled.swal2-confirm{
-                background-color: #005af9 !important;
+                background-color: var(--ct-primary) !important;
             }
         </style>
         <!-- Begin page -->

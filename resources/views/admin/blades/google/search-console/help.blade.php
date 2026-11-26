@@ -46,7 +46,7 @@
 
     .help-highlight {
         background: #f8f9fa;
-        border-left: 3px solid #cbff4d;
+        border-left: 3px solid #fb6c04;
         padding: 14px 16px;
         border-radius: 4px;
     }

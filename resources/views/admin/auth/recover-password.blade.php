@@ -109,12 +109,12 @@
         }
 
         .form-control:focus {
-            border-color: #0073FA
-            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+            border-color: #fb6c04
+            box-shadow: 0 0 0 3px rgba(251, 108, 4, 0.1);
         }
 
         .btn-primary {
-            background: #0073FA;
+            background: #fb6c04;
             border: none;
             transition: all 0.3s;
             font-size: 0.95rem;
@@ -122,9 +122,9 @@
         }
 
         .btn-primary:hover {
-            background: #0b5ed7;
+            background: #d94f00;
             transform: translateY(-1px);
-            box-shadow: 0 8px 25px rgba(13, 110, 253, 0.3);
+            box-shadow: 0 8px 25px rgba(251, 108, 4, 0.3);
         }
 
         .btn-primary:active {
@@ -132,18 +132,18 @@
         }
 
         a {
-            color: #0073FA
+            color: #fb6c04
             transition: all 0.2s;
             font-weight: 500;
         }
 
         a:hover {
-            color: #0b5ed7;
+            color: #d94f00;
         }
 
         .form-check-input:checked {
-            background-color: #0073FA
-            border-color: #0073FA
+            background-color: #fb6c04
+            border-color: #fb6c04
         }
 
         .auth-brand {

@@ -66,13 +66,13 @@
                             </p>
 
                             <!-- Mensagem adicional -->
-                            <div class="alert alert-info border-0 rounded-3" role="alert" style="background: #eff6ff; color: #0073FA; border-left: 4px solid #3b82f6 !important;">
+                            <div class="alert alert-info border-0 rounded-3" role="alert" style="background: #fdf3e4; color: #9a4100; border-left: 4px solid #fb6c04 !important;">
                                 <i class="mdi mdi-information-outline me-1"></i>
                                 Você será redirecionado em <strong id="contador">3</strong> segundos
                             </div>
 
                             <!-- Botão de ação -->
-                            <a href="{{route('admin.login')}}" class="btn btn-primary py-2 px-4 fw-semibold" style="border-radius: 12px; background: linear-gradient(135deg, #0d6efd, #0b5ed7); border: none; transition: all 0.3s;">
+                            <a href="{{route('admin.login')}}" class="btn btn-primary py-2 px-4 fw-semibold" style="border-radius: 12px; background: linear-gradient(135deg, #fb6c04, #d94f00); color: #021127; border: none; transition: all 0.3s;">
                                 <i class="mdi mdi-login me-1"></i>
                                 Fazer login novamente
                             </a>
@@ -125,17 +125,17 @@
 
             .btn-primary:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 8px 25px rgba(13, 110, 253, 0.35);
+                box-shadow: 0 8px 25px rgba(251, 108, 4, 0.35);
             }
 
             .text-muted a:hover {
-                color: #0d6efd !important;
+                color: #fb6c04 !important;
             }
 
             .alert-info {
-                background: #eff6ff;
-                color: #0073FA;
-                border-left: 4px solid #3b82f6 !important;
+                background: #fdf3e4;
+                color: #9a4100;
+                border-left: 4px solid #fb6c04 !important;
             }
 
             /* Animação do ícone */

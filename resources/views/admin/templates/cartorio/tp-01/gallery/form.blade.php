@@ -270,13 +270,13 @@
 
     .upload-box:hover,
     .upload-box.dragover {
-        border-color: #0d6efd !important;
+        border-color: var(--ct-primary) !important;
         background: linear-gradient(to bottom, #e7f1ff, #f8f9fa);
     }
 
     .upload-box.dragover {
         background: #e7f1ff;
-        border-color: #0d6efd;
+        border-color: var(--ct-primary);
     }
 
     .upload-icon {
@@ -292,7 +292,7 @@
     }
 
     .upload-box:hover .upload-icon i {
-        color: #0d6efd;
+        color: var(--ct-primary);
     }
 
     /* Preview de imagens */

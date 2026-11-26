@@ -222,18 +222,18 @@
 
         /* Geral */
         .announcement-general {
-            background: #eef5ff;
-            border-color: #a8ccff;
+            background: #fdf3e4;
+            border-color: #f2c99e;
             color: #021127;
         }
 
         .announcement-general .announcement-icon {
-            background: #cfe2ff;
+            background: #f5e8d6;
         }
 
         .announcement-general .announcement-button {
-            background: #0d6efd;
-            color: #fff;
+            background: #fb6c04;
+            color: #021127;
         }
 
         /* Manutenção */
@@ -270,18 +270,18 @@
 
         /* Promoção */
         .announcement-promotion {
-            background: #eef5ff;
-            border-color: #a8ccff;
+            background: #fdf3e4;
+            border-color: #f2c99e;
             color: #021127;
         }
 
         .announcement-promotion .announcement-icon {
-            background: #e9d5ff;
+            background: #f5e8d6;
         }
 
         .announcement-promotion .announcement-button {
-            background: #005af9;
-            color: #fff;
+            background: #fb6c04;
+            color: #021127;
         }
 
         /* Aviso */

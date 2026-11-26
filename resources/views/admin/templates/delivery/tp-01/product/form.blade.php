@@ -1048,12 +1048,12 @@
     }
 
     .product-type-input:checked + .product-type-content {
-        border: 2px solid #0d6efd;
+        border: 2px solid var(--ct-primary);
         background: #f0f6ff;
     }
 
     .product-type-input:focus + .product-type-content {
-        outline: 2px solid #0d6efd;
+        outline: 2px solid var(--ct-primary);
     }
 
     .nav-tabs .nav-link {
